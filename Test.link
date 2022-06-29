@@ -1,0 +1,5 @@
+[objects]
+obj/main.obj
+obj/init.obj
+obj/layout.obj
+obj/render.obj
