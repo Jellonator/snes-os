@@ -142,17 +142,19 @@ KernelLoop__:
     wai
     sep #$30 ; 8b AXY
     lda.b __idx
-    and #$0F
     tax
     inc A
-    and #$0F
+    cmp #14
+    bne +
+    lda #0
+    +:
     sta.b __idx
     lda.l __teststr,X
     jsl kputc
     jmp KernelLoop__
 
 __teststr:
-    .DB "Hello world!    "
+    .DB "Hello, world! "
 
 ; Context switch; change to stack pointer in X
 ContextSwitchTo__:
