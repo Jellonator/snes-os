@@ -11,7 +11,8 @@ PY       := python3
 SOURCES  := main.asm\
 			init.asm\
 			layout.asm\
-			render.asm
+			render.asm\
+			kprint.asm
 
 OBJECTS  := $(SOURCES:%.asm=$(OBJDIR)/%.obj)
 INCLUDES := $(wildcard include/*.inc)

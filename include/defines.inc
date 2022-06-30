@@ -25,29 +25,12 @@
 .DEFINE MEM_BLOCK_SIZE 256 ; 1 page
 .DEFINE MEM_BLOCK_COUNT 256 ; number of pages in $7F
 
-; VRAM slots
-; VRAM is 64KB of 16b words addressed $0000-$7FFF
-
-; sprite OBJ page 1; granularity is (X % $2000) words
-; Each 'page' is $1000 words
-.DEFINE SPRITE1_BASE_ADDR $6000
-; sprite OBJ page 1; should be offset by $1000-$4000 words from page 0
-; granularity is (C % $1000) words
-.DEFINE SPRITE2_BASE_ADDR $7000
-; tile data addresses; granularity is (X % $0400) words
-.DEFINE BG1_TILE_BASE_ADDR $0400
-.DEFINE BG2_TILE_BASE_ADDR $0800
-.DEFINE BG3_TILE_BASE_ADDR $0C00
-; tile character addresses; granularity is (X % $1000) words
-.DEFINE BG1_CHARACTER_BASE_ADDR $2000
-.DEFINE BG2_CHARACTER_BASE_ADDR $3000
-.DEFINE BG3_CHARACTER_BASE_ADDR $0000
-
 ; Process data
 .DEFINE PROCESS_NULL 0
 .DEFINE PROCESS_READY 1
 .DEFINE PROCESS_ACTIVE 2
 .DEFINE PROCESS_SUSPEND 3
+.DEFINE PROCESS_WAIT_NMI 4 ; process is waiting for NMI
 
 .DEFINE PROCFLAG_BANK $01 ; 0 = bank $7E, 1 = bank $7F
 
