@@ -108,6 +108,7 @@ KUpdatePrinter__:
     and #$FFE0
     clc
     adc #$20 ; 32 tiles per row
+    and #$03FF
     sta loword(kTermPrintVMEMPtr)
     sta.l VMADDR
     ; clc
@@ -115,7 +116,10 @@ KUpdatePrinter__:
     bra @continue
 @putchar:
     sta.l VMDATA
-    inc loword(kTermPrintVMEMPtr)
+    lda loword(kTermPrintVMEMPtr)
+    inc A
+    and #$03FF
+    sta loword(kTermPrintVMEMPtr)
 @continue:
     ; ++x
     inx
