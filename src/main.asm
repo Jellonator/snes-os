@@ -17,8 +17,8 @@ KernelInitialize__:
     xce
     ; Binary mode (decimal mode off), X/Y 16 bit
     rep #$18
-    ; set stack to $1FFF
-    ldx #$1FFF
+    ; set stack to $001F (top of first direct page)
+    ldx #$001F
     txs
     ; Initialize registers
     jsl KernelResetRegisters__
@@ -26,6 +26,8 @@ KernelInitialize__:
     sta MEMSEL ; use FASTROM
     jml KernelInitialize2__
 
+; Called by SNES' IRQ timer.
+; In charge of process switching.
 KernelIRQ__:
     rep #$20 ; 16b A
     pha
@@ -105,7 +107,6 @@ KernelInitialize2__:
     inx
     cpx #MAX_CONCURRENT_PROCESSES_COUNT
     bne @clear_process_loop
-
 ; Setup process 0
     stz loword(kActiveProcessId)
     lda #PROCESS_READY
@@ -118,23 +119,40 @@ KernelInitialize2__:
     sta loword(kProcessDirectPageCountTable + 0)
     stz loword(kProcessNextIdTable + 0)
     stz loword(kProcessPrevIdTable + 0)
-    ldx #$1F ; set stack of init process to top of first direct page
-    txs
+; other initialization
+    jsl KInitPrinter__
 ; re-enable IRQ/NMI
     rep #$20
-    lda #64
+    lda #24 ; start just after hblank
     sta.l HTIME
+    lda #0 ; start on first visible scanline
     sta.l VTIME
     sep #$20
     lda #%10110001
     sta.l NMITIMEN
-    sta.l kNMITIMEN
+    sta loword(kNMITIMEN)
     cli
 
 ; Finally, just become an infinite loop as process 0
+    .DEFINE __idx $03
+    sep #$30 ; 8b AXY
+    stz.b __idx
     jmp KernelLoop__
 KernelLoop__:
+    wai
+    sep #$30 ; 8b AXY
+    lda.b __idx
+    and #$0F
+    tax
+    inc A
+    and #$0F
+    sta.b __idx
+    lda.l __teststr,X
+    jsl kputc
     jmp KernelLoop__
+
+__teststr:
+    .DB "Hello world!    "
 
 ; Context switch; change to stack pointer in X
 ContextSwitchTo__:

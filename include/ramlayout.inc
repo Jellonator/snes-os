@@ -17,9 +17,9 @@
     kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT
     ; terminal info
     kTermPrintVMEMPtr dw ; index of VMEM pointer
-    kTermPrintBufferPtr dw ; index of buffer pointer
     kTermOffY dw ; Y-offset of terminal, used for scrolling
-    kTermBuffer ds (32*32)
+    kTermBufferCount dw ; number of characters to be printed
+    kTermBuffer ds (32*32) ; text to be added
     _kMemoryEnd db
 .ENDE
 

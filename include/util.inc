@@ -109,29 +109,6 @@
     plb
 .ENDM
 
-.MACRO .CopyROMToVQueueBin ARGS ROMADDR, NBYTES
-    rep #$20 ; 16 bit A
-    lda #NBYTES
-    sta DMA0_SIZE
-    lda #loword(ROMADDR)
-    sta DMA0_SRCL
-    lda.w vqueueBinOffset
-    sta WMADDL
-    sep #$20 ; 8 bit A
-    lda #bankbyte(ROMADDR)
-    sta DMA0_SRCH
-    lda #$7F
-    sta WMADDH
-    ; Absolute address, no increment, 1 byte at a time
-    lda #%00000000
-    sta DMA0_CTL
-    ; Write to WRAM
-    lda #$80
-    sta DMA0_DEST
-    lda #$01
-    sta MDMAEN
-.ENDM
-
 .MACRO .ClearWRam ARGS ADDRL, NBYTES
     rep #$20 ; 16 bit A
     lda #NBYTES
@@ -216,4 +193,8 @@
     pla
     sta.l kNMITIMEN
     sta.l NMITIMEN
+.ENDM
+
+.MACRO .DCOLOR_RGB5 ARGS R, G, B
+    .dw (B << 10) | (G << 5) | R
 .ENDM
