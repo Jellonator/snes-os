@@ -171,6 +171,21 @@
     sta.l kProcessSPBackupTable,X
 .ENDM
 
+.MACRO .PushStack ARGS newstacksp
+    rep #$10 ; 16b XY
+    tsx
+    txy
+    ldx #newstacksp
+    txs
+    phy
+.ENDM
+
+.MACRO .RestoreStack
+    rep #$10 ; 16b XY
+    plx
+    txs
+.ENDM
+
 .MACRO .ContextSave__
     rep #$30 ; 16b AXY
     pha

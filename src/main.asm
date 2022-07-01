@@ -17,8 +17,8 @@ KernelInitialize__:
     xce
     ; Binary mode (decimal mode off), X/Y 16 bit
     rep #$18
-    ; set stack to $001F (top of first direct page)
-    ldx #$001F
+    ; set stack for init process
+    ldx #$003F
     txs
     ; Initialize registers
     jsl KernelResetRegisters__
@@ -139,19 +139,15 @@ KernelInitialize2__:
     stz.b __idx
     jmp KernelLoop__
 KernelLoop__:
-    wai
-    sep #$30 ; 8b AXY
-    ldx #0
-    -:
-    lda.l __teststr,X
-    beq +
-    phx
+    ; wai
+    sep #$20 ; 8b A
+    lda #'q'
     jsl kputc
-    sep #$30 ; 8b AXY
-    plx
-    inx
-    bra -
-    +:
+    ; ldy #loword(__teststr)
+    ; phb
+    ; .ChangeDataBank bankbyte(__teststr)
+    ; jsl kputstring
+    ; plb
     jmp KernelLoop__
 
 __teststr:

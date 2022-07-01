@@ -30,7 +30,6 @@ KPrintPalette__:
 .DEFINE DEADZONE_LEFT 2 ; screen offset from left
 .DEFINE MAX_TERM_WIDTH 28 ; maximum of 28 characters per row
 .DEFINE ROW_START 25 ; row to start writing to
-.DEFINE ROW_DISPLAY 30 ; display 30 rows
 
 __KNextRow__:
     ; update vmem ptr
@@ -74,6 +73,7 @@ KInitPrinter__:
     lda #ROW_START*32
     sta loword(kTermPrintVMEMPtr)
     sep #$20 ; 8b A
+    stz loword(kTermBufferLoop)
     ; f-blank
     lda #%10001111
     sta.l INIDISP
@@ -139,10 +139,25 @@ KUpdatePrinter__:
     lda loword(kTermPrintVMEMPtr)
     sta.l VMADDR
 ; print
+    sep #$20 ; 8b A
+    lda loword(kTermBufferLoop)
+    bne +
+    ; no buffer loop
     ldx #0
     cpx loword(kTermBufferCount)
     beq @endloop
+    rep #$20 ; 16b A
+    bra @loop
+    +:
+    ; perform buffer loop
+    ldx loword(kTermBufferCount)
+    stz loword(kTermBufferLoop)
+    rep #$20 ; 16b A
 @loop:
+    cpx #KTERM_MAX_BUFFER_SIZE
+    bne +
+    ldx #0
+    +:
     lda kTermBuffer,X
     and #$00FF
     cmp #'\n'
@@ -182,9 +197,16 @@ kputc:
     .DisableInt__
     .ChangeDataBank $7E
 ; begin
-    ; TODO: obey buffer max size
+    
     rep #$10 ; 16b XY
     ldx loword(kTermBufferCount)
+    cpx #KTERM_MAX_BUFFER_SIZE
+    bne +
+    ; buffer loop
+        ldx #0
+        lda #1
+        sta loword(kTermBufferLoop)
+    +:
     lda $02,s
     sta loword(kTermBuffer),X
     inx
@@ -194,5 +216,40 @@ kputc:
     pla
     plb
     rtl
+
+; put string from pointer Y into string buffer
+; XY should be 16b
+kputstring:
+    .INDEX 16
+    sep #$20 ; 8b A
+    .DisableInt__
+; begin
+    rep #$20 ; 16b A
+    lda.l kTermBufferCount
+    tax
+    sep #$20 ; 8b A
+@loop:
+    cpx #KTERM_MAX_BUFFER_SIZE
+    bne +
+    ldx #0
+    lda #1
+    sta.l kTermBufferLoop
+    +:
+    lda.w $0000,Y
+    beq @end
+    sta.l kTermBuffer,X
+    iny
+    inx
+    bra @loop
+@end:
+    rep #$20 ; 16b A
+    txa
+    sta.l kTermBufferCount
+;end
+    sep #$20 ; 8b A
+    .RestoreInt__
+    rtl
+
+
 
 .ENDS
