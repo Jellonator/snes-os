@@ -25,15 +25,63 @@ KPrintPalette__:
 ; tile character addresses; granularity is (X % $1000) words
 .DEFINE BG1_CHARACTER_BASE_ADDR $1000
 
+; ntsc TVs may hide some or all of the screen, so this zone is defined to
+; prevent text being printed to unreadable sections of the screen
+.DEFINE DEADZONE_LEFT 2 ; screen offset from left
+.DEFINE MAX_TERM_WIDTH 28 ; maximum of 28 characters per row
+.DEFINE ROW_START 25 ; row to start writing to
+.DEFINE ROW_DISPLAY 30 ; display 30 rows
+
+__KNextRow__:
+    ; update vmem ptr
+    rep #$20
+    lda loword(kTermPrintVMEMPtr)
+    and #$FFE0
+    clc
+    adc #$20
+    and #$03FF
+    sta loword(kTermPrintVMEMPtr)
+    ; clear incoming line
+    clc
+    adc #$20 * 2
+    and #$03FF
+    clc
+    adc #BG1_TILE_BASE_ADDR
+    pha
+    pea 32*2
+    jsl KClearVMem
+    rep #$20 ; 16b A
+    pla
+    pla
+    lda loword(kTermPrintVMEMPtr)
+    sta.l VMADDR
+    ; update offset
+    lda loword(kTermOffY)
+    clc
+    adc #8
+    sta loword(kTermOffY)    
+    sep #$20 ; 8b A
+    sta.l BG1VOFS
+    xba
+    sta.l BG1VOFS
+    rtl
+
 KInitPrinter__:
     rep #$30 ; 16b AXY
     stz loword(kTermBufferCount)
-    stz loword(kTermOffY)
-    stz loword(kTermPrintVMEMPtr)
+    lda #0
+    sta loword(kTermOffY)
+    lda #ROW_START*32
+    sta loword(kTermPrintVMEMPtr)
     sep #$20 ; 8b A
     ; f-blank
     lda #%10001111
     sta.l INIDISP
+    ; set scroll
+    lda #-DEADZONE_LEFT*8
+    sta.l BG1HOFS
+    lda #0
+    sta.l BG1HOFS
     ; set addresses
     lda #(BG1_TILE_BASE_ADDR >> 8) | %00
     sta.l BG1SC
@@ -81,20 +129,16 @@ KInitPrinter__:
 
 ; Update printer during vblank
 KUpdatePrinter__:
-    sep #$30
-    .DisableInt__
     phb
     .ChangeDataBank $7E
 ; setup
+    sep #$30 ; 8b AXY
     lda #%10000000
     sta.l VMAIN
     rep #$30 ; 16b AXY
     lda loword(kTermPrintVMEMPtr)
-    ; clc
-    ; adc #BG1_TILE_BASE_ADDR
     sta.l VMADDR
 ; print
-    ; sep #$20 ; 8b A
     ldx #0
     cpx loword(kTermBufferCount)
     beq @endloop
@@ -104,24 +148,21 @@ KUpdatePrinter__:
     cmp #'\n'
     bne @putchar
 ; @newline:
-    lda loword(kTermPrintVMEMPtr)
-    and #$FFE0
-    clc
-    adc #$20 ; 32 tiles per row
-    and #$03FF
-    sta loword(kTermPrintVMEMPtr)
-    sta.l VMADDR
-    ; clc
-    ; adc #BG1_TILE_BASE_ADDR
+    jsl __KNextRow__
+    rep #$30 ; 16b AXY
     bra @continue
 @putchar:
     sta.l VMDATA
     lda loword(kTermPrintVMEMPtr)
-    inc A
-    and #$03FF
-    sta loword(kTermPrintVMEMPtr)
+    and #$001F
+    cmp #MAX_TERM_WIDTH-1
+    bne +
+    jsl __KNextRow__
+    rep #$30 ; 16b AXY
+    jmp @continue
+    +:
+    inc loword(kTermPrintVMEMPtr)
 @continue:
-    ; ++x
     inx
     cpx loword(kTermBufferCount)
     bne @loop
@@ -129,14 +170,11 @@ KUpdatePrinter__:
 ; end loop
     ldx #0
     stx loword(kTermBufferCount)
-    
 ; end
     plb
-    sep #$30
-    .RestoreInt__
     rtl
 
-; put single character (reg A)
+; put single character (reg A, 8b)
 kputc:
     .ACCU 8
     phb
@@ -152,9 +190,9 @@ kputc:
     inx
     stx loword(kTermBufferCount)
 ; end
-    plb
-    pla
     .RestoreInt__
+    pla
+    plb
     rtl
 
 .ENDS

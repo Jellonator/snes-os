@@ -17,7 +17,20 @@ __EmptyData__:
     .dw 0
 
 KernelVBlank2__:
+    ; disable interrupts
+    sep #$30
+    .DisableInt__
+    ; f-blank
+    ; lda #%10001111
+    ; sta.l INIDISP
+    ; call update printer
     jsl KUpdatePrinter__
+    ; stop f-blank
+    ; lda #%00001111
+    ; sta.l INIDISP
+    ; re-enable interrupts
+    sep #$30
+    .RestoreInt__
     rti
 
 ; Copy palette to CGRAM

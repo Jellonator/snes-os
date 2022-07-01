@@ -141,20 +141,21 @@ KernelInitialize2__:
 KernelLoop__:
     wai
     sep #$30 ; 8b AXY
-    lda.b __idx
-    tax
-    inc A
-    cmp #14
-    bne +
-    lda #0
-    +:
-    sta.b __idx
+    ldx #0
+    -:
     lda.l __teststr,X
+    beq +
+    phx
     jsl kputc
+    sep #$30 ; 8b AXY
+    plx
+    inx
+    bra -
+    +:
     jmp KernelLoop__
 
 __teststr:
-    .DB "Hello, world! "
+    .DB "Hello, world!\0"
 
 ; Context switch; change to stack pointer in X
 ContextSwitchTo__:
