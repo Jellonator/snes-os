@@ -45,17 +45,25 @@ KernelVBlank2__:
     ; call update printer
     jsl KUpdatePrinter__
     ; stop f-blank
-    sep #$20 ; 8b A
+    sep #$30 ; 8b AXY
     lda #%00001111
     sta.l INIDISP
-    ; switch process
-    sep #$30 ; 8b AXY
+    ; make waiting processes ready
+    ldx #0
+    @loop:
+        lda loword(kProcessStatusTable),X
+        and #$7F
+        sta loword(kProcessStatusTable),X
+        lda loword(kProcessNextIdTable),X
+        tax
+        bne @loop
+    ; TODO: make better by implementing ready/wait list
+    .ChangeDataBank $7E
     ; Check if IRQ is disabled
     lda.l kNMITIMEN
     bit #$30
     bne +
-        ; restore
-        .ChangeDataBank $7E
+        ; restore process
         lda loword(kActiveProcessId)
         asl
         tay
@@ -72,6 +80,7 @@ KernelVBlank2__:
         pla ; finalize context switch
         rti
     +:
+    ; switch process
     jml KernelIRQ2__@entrypoint
 
 ; Copy palette to CGRAM
