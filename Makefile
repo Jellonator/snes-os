@@ -12,7 +12,8 @@ SOURCES  := main.asm\
 			init.asm\
 			layout.asm\
 			render.asm\
-			kprint.asm
+			kprint.asm\
+			process.asm
 
 OBJECTS  := $(SOURCES:%.asm=$(OBJDIR)/%.obj)
 INCLUDES := $(wildcard include/*.inc)

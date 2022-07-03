@@ -29,24 +29,30 @@ KernelInitialize__:
 ; Called by SNES' IRQ timer.
 ; In charge of process switching.
 KernelIRQ__:
+    sei
     rep #$20 ; 16b A
     pha
-    sep #$20 ; 8b A
 ; disable interrupts
+    sep #$20 ; 8b A
     lda #%00000001
     sta.l NMITIMEN
+    lda.l TIMEUP
+    jml KernelIRQ2__ ; go to FASTROM section
+
+.ENDS
+
+.BANK $01 SLOT "ROM"
+.SECTION "MainCode" FREE
+
+KernelIRQ2__:
 ; save context
     .ContextSave_NOA__
 ; begin
-    .ChangeDataBank $7E
+@entrypoint:
     sep #$30 ; 8b AXY
-    lda.l TIMEUP
-; set active process to READY
-    lda loword(kActiveProcessId)
-    tax
-    lda #PROCESS_READY
-    sta loword(kProcessStatusTable),X
+    .ChangeDataBank $7E
 ; find next READY process
+    ldx loword(kActiveProcessId)
 @find_ready:
     lda loword(kProcessNextIdTable),X
     tax
@@ -55,17 +61,16 @@ KernelIRQ__:
     bne @find_ready
 ; set found process to active
     stx loword(kActiveProcessId)
-    lda #PROCESS_ACTIVE
-    sta loword(kProcessStatusTable),X
 ; Switch to process
     txa
     asl
     tay
+    rep #$10 ; 16b XY
     ldx loword(kProcessSPBackupTable),Y
     txs ; begin context switch
     pld
     plb
-    rep #$10 ; 16b XY
+    ; rep #$10 ; 16b XY
     ply
     plx
     lda kNMITIMEN ; re-enable interrupts
@@ -73,11 +78,6 @@ KernelIRQ__:
     rep #$20 ; 16b A
     pla ; finalize context switch
     rti
-
-.ENDS
-
-.BANK $01 SLOT "ROM"
-.SECTION "MainCode" FREE
 
 KernelInitialize2__:
     ; Disable rendering temporarily
@@ -102,11 +102,21 @@ KernelInitialize2__:
     stz loword(kProcessMemPageCountTable),X
     stz loword(kProcessDirectPageIndexTable),X
     stz loword(kProcessDirectPageCountTable),X
-    stz loword(kProcessNextIdTable),X
-    stz loword(kProcessPrevIdTable),X
+    txa
+    inc A
+    sta loword(kProcessNextIdTable),X
+    dec A
+    dec A
+    sta loword(kProcessPrevIdTable),X
     inx
     cpx #MAX_CONCURRENT_PROCESSES_COUNT
     bne @clear_process_loop
+; setup null process list
+    lda #1
+    sta loword(kProcessNextIdTable) + MAX_CONCURRENT_PROCESSES_COUNT - 1
+    sta loword(kNextFreePID)
+    lda #MAX_CONCURRENT_PROCESSES_COUNT - 1
+    sta loword(kProcessPrevIdTable) + 1
 ; Setup process 0
     stz loword(kActiveProcessId)
     lda #PROCESS_READY
@@ -123,35 +133,57 @@ KernelInitialize2__:
     jsl KInitPrinter__
 ; re-enable IRQ/NMI
     rep #$20
-    lda #24 ; start just after hblank
+    lda #128 ; choose close to center of screen to
+    ; minimize the chance of overlap with NMI
     sta.l HTIME
-    lda #0 ; start on first visible scanline
+    lda #160 ; start on first visible scanline
     sta.l VTIME
     sep #$20
-    lda #%10110001
+    lda #%10100001
     sta.l NMITIMEN
     sta loword(kNMITIMEN)
     cli
-
+; spawn a couple of processes
+    sep #$20 ; 8b A
+    lda #'a'
+    pha
+    pea 1
+    pea 32
+    lda #bankbyte(TestProcess)
+    pha
+    pea loword(TestProcess)
+    jsl kcreateprocess
+    jsl kresumeprocess
+    sep #$20 ; 8b A
+    lda #'b'
+    sta $08,s
+    jsl kcreateprocess
+    jsl kresumeprocess
+    sep #$20 ; 8b A
+    lda #'c'
+    sta $08,s
+    jsl kcreateprocess
+    jsl kresumeprocess
+    sep #$30 ; 16b A
+    pla
+    pla
+    pla
+    pla
 ; Finally, just become an infinite loop as process 0
-    .DEFINE __idx $03
-    sep #$30 ; 8b AXY
-    stz.b __idx
     jmp KernelLoop__
 KernelLoop__:
-    ; wai
-    sep #$20 ; 8b A
-    lda #'q'
-    jsl kputc
-    ; ldy #loword(__teststr)
-    ; phb
-    ; .ChangeDataBank bankbyte(__teststr)
-    ; jsl kputstring
-    ; plb
+    jsl kreschedule
     jmp KernelLoop__
 
 __teststr:
     .DB "Hello, world!\0"
+
+TestProcess:
+    sep #$20 ; 8b A
+    lda $01,s
+    jsl kputc
+    ; jsl kreschedule
+    jmp TestProcess
 
 ; Context switch; change to stack pointer in X
 ContextSwitchTo__:

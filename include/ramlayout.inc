@@ -3,6 +3,7 @@
     kMemoryPageMask ds ((MEM_BLOCK_COUNT / 8) * 2) ; two banks
     kDirectPageMask ds (DP_BLOCK_COUNT / 8)
     kActiveProcessId db
+    kNextFreePID db
     kNMITIMEN db ; stores current value of NMITEN hardware register
     ; NMITEN is a read-only register
     ; Process info stored in tables

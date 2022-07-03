@@ -194,10 +194,9 @@ kputc:
     .ACCU 8
     phb
     pha
-    .DisableInt__
     .ChangeDataBank $7E
+    .DisableInt__
 ; begin
-    
     rep #$10 ; 16b XY
     ldx loword(kTermBufferCount)
     cpx #KTERM_MAX_BUFFER_SIZE
