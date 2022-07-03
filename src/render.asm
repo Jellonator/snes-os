@@ -12,6 +12,8 @@ KernelVBlank__:
     lda #%00000001
     sta.l NMITIMEN
     ; Check if NMI is truely disabled
+    ; There is a small window after writing to NMITIMEN where there is a chance
+    ; that NMI will still activate, which can cause the kernel to hang.
     lda.l kNMITIMEN
     bit #$80
     bne +
@@ -49,14 +51,17 @@ KernelVBlank2__:
     lda #%00001111
     sta.l INIDISP
     ; make waiting processes ready
-    ldx #0
+    ldx loword(kListActive)
+    beq @loopend
     @loop:
         lda loword(kProcessStatusTable),X
         and #$7F
         sta loword(kProcessStatusTable),X
         lda loword(kProcessNextIdTable),X
         tax
+        cmp loword(kListActive)
         bne @loop
+    @loopend:
     ; TODO: make better by implementing ready/wait list
     .ChangeDataBank $7E
     ; Check if IRQ is disabled
@@ -64,7 +69,7 @@ KernelVBlank2__:
     bit #$30
     bne +
         ; restore process
-        lda loword(kActiveProcessId)
+        lda loword(kCurrentPID)
         asl
         tay
         rep #$10 ; 16b XY

@@ -2,11 +2,11 @@
 .ENUM $7E2000
     kMemoryPageMask ds ((MEM_BLOCK_COUNT / 8) * 2) ; two banks
     kDirectPageMask ds (DP_BLOCK_COUNT / 8)
-    kActiveProcessId db
-    kNextFreePID db
-    kNMITIMEN db ; stores current value of NMITEN hardware register
-    ; NMITEN is a read-only register
-    ; Process info stored in tables
+    kCurrentPID db ; active process's PID
+    kListNull db ; null process list
+    kListActive db ; active process list
+    kNMITIMEN db ; stores current value of NMITEN (read-only) hardware register
+; Process info stored in tables
     kProcessStatusTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessFlagTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessMemPageIndexTable ds MAX_CONCURRENT_PROCESSES_COUNT
@@ -16,12 +16,12 @@
     kProcessNextIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessPrevIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT
-    ; terminal info
+; terminal info
     kTermPrintVMEMPtr dw ; index of VMEM pointer
     kTermOffY dw ; Y-offset of terminal, used for scrolling
     kTermBufferCount dw ; number of characters to be printed
     kTermBufferLoop db ; if non-zero: write bytes from kTermBufferCount to
-    ; buffer size, then from 0 to kTermBufferCount
+; buffer size, then from 0 to kTermBufferCount
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
     _kMemoryEnd db
 .ENDE

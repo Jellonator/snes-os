@@ -52,7 +52,7 @@ KernelIRQ2__:
     sep #$30 ; 8b AXY
     .ChangeDataBank $7E
 ; find next READY process
-    ldx loword(kActiveProcessId)
+    ldx loword(kCurrentPID)
 @find_ready:
     lda loword(kProcessNextIdTable),X
     tax
@@ -60,7 +60,7 @@ KernelIRQ2__:
     cmp #PROCESS_READY
     bne @find_ready
 ; set found process to active
-    stx loword(kActiveProcessId)
+    stx loword(kCurrentPID)
 ; Switch to process
     txa
     asl
@@ -91,7 +91,10 @@ KernelInitialize2__:
     sei
     lda #$01
     sta.l NMITIMEN
-; clear data for processes 1+
+; clear lists
+    stz.w loword(kListNull)
+    stz.w loword(kListActive)
+; clear data for all processes (1+)
     .ChangeDataBank $7E
     sep #$30 ; 8b AXY
     ldx #1
@@ -111,24 +114,26 @@ KernelInitialize2__:
     inx
     cpx #MAX_CONCURRENT_PROCESSES_COUNT
     bne @clear_process_loop
-; setup null process list
-    lda #1
+; setup null process list (first and last PID point to each other)
+    lda #2
     sta loword(kProcessNextIdTable) + MAX_CONCURRENT_PROCESSES_COUNT - 1
-    sta loword(kNextFreePID)
+    sta loword(kListNull)
     lda #MAX_CONCURRENT_PROCESSES_COUNT - 1
-    sta loword(kProcessPrevIdTable) + 1
-; Setup process 0
-    stz loword(kActiveProcessId)
-    lda #PROCESS_READY
-    sta loword(kProcessStatusTable + 0)
-    stz loword(kProcessMemPageIndexTable + 0)
-    lda #KERNEL_PAGES_USED
-    sta loword(kProcessMemPageCountTable + 0)
-    stz loword(kProcessDirectPageIndexTable + 0)
+    sta loword(kProcessPrevIdTable) + 2
+; Setup process 1
     lda #1
-    sta loword(kProcessDirectPageCountTable + 0)
-    stz loword(kProcessNextIdTable + 0)
-    stz loword(kProcessPrevIdTable + 0)
+    sta loword(kCurrentPID)
+    sta loword(kListActive)
+    lda #PROCESS_READY
+    sta loword(kProcessStatusTable + 1)
+    stz loword(kProcessMemPageIndexTable + 1)
+    lda #KERNEL_PAGES_USED
+    sta loword(kProcessMemPageCountTable + 1)
+    stz loword(kProcessDirectPageIndexTable + 1)
+    lda #1
+    sta loword(kProcessDirectPageCountTable + 1)
+    sta loword(kProcessNextIdTable + 1)
+    sta loword(kProcessPrevIdTable + 1)
 ; other initialization
     jsl KInitPrinter__
 ; re-enable IRQ/NMI
@@ -169,7 +174,7 @@ KernelInitialize2__:
     pla
     pla
     pla
-; Finally, just become an infinite loop as process 0
+; Finally, just become an infinite loop as process 1
     jmp KernelLoop__
 KernelLoop__:
     jsl kreschedule
@@ -204,15 +209,5 @@ TestProcess:
     jsl ksetcurrentprocessstate
     jsl kreschedule
     jmp TestProcess
-
-; Context switch; change to stack pointer in X
-ContextSwitchTo__:
-    txs
-    pld
-    plb
-    ply
-    plx
-    pla
-    rti
 
 .ENDS
