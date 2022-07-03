@@ -175,14 +175,34 @@ KernelLoop__:
     jsl kreschedule
     jmp KernelLoop__
 
-__teststr:
-    .DB "Hello, world!\0"
+__teststr1:
+    .DB "Hello from \0"
+__teststr2:
+    .DB "!\n\0"
 
 TestProcess:
+; put __teststr1
+    rep #$10 ; 16b XY
+    phb
+    .ChangeDataBank bankbyte(__teststr1)
+    ldy #loword(__teststr1)
+    jsl kputstring
+    plb
+; put char
     sep #$20 ; 8b A
     lda $01,s
     jsl kputc
-    ; jsl kreschedule
+; put __teststr2
+    rep #$10 ; 16b XY
+    phb
+    .ChangeDataBank bankbyte(__teststr2)
+    ldy #loword(__teststr2)
+    jsl kputstring
+    plb
+; wait
+    lda #PROCESS_WAIT_NMI
+    jsl ksetcurrentprocessstate
+    jsl kreschedule
     jmp TestProcess
 
 ; Context switch; change to stack pointer in X

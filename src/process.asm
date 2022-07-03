@@ -127,8 +127,20 @@ kreschedule:
     sei
     jml KernelIRQ__
 
-; suspend current process
-; ksuspend:
-    ; lda #PROCESS_
+; Set process X's state to A
+; A and X should be 8b
+ksetprocessstate:
+    sta.l kProcessStatusTable,X 
+    rtl
+
+; Set current process's state to A
+; A and X should be 8b
+ksetcurrentprocessstate:
+    pha
+    lda.l kActiveProcessId
+    tax
+    pla
+    sta.l kProcessStatusTable,X
+    rtl
 
 .ENDS
