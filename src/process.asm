@@ -14,24 +14,13 @@ kcreateprocess:
     .DisableInt__ ; [+1; 1]
     phb ; [+1; 2]
     .ChangeDataBank $7E
-    ; first, get free PID
-    ldx loword(kNextFreePID)
     ; TODO: failure when no more free PIDs
+    ; get next PID
+    ldx.w loword(kListNull)
     ; remove X from null list
-    ldy loword(kProcessNextIdTable),X ;   Y = X->next
-    sty loword(kNextFreePID)
-    lda loword(kProcessPrevIdTable),X ;   A = X->prev
-    sta loword(kProcessPrevIdTable),Y ; X->next->prev = X->prev
-    ldy loword(kProcessPrevIdTable),X ;   Y = X->prev
-    lda loword(kProcessNextIdTable),X ;   A = X->next
-    sta loword(kProcessNextIdTable),Y ; X->prev->next = X->next
-    stz loword(kProcessNextIdTable),X ; X->next = 0
-    lda loword(kProcessPrevIdTable)+0 ;   A = 0->prev
-    sta loword(kProcessPrevIdTable),X ; X->prev = 0->prev
-    tay
-    txa
-    sta loword(kProcessNextIdTable),Y ; 0->prev->next = X
-    stx loword(kProcessPrevIdTable)+0 ; 0->prev = X
+    .ListRemoveX kListNull
+    ; add X to active list
+    .ListAddX kListActive
     ; set values
     lda #PROCESS_SUSPEND
     sta loword(kProcessStatusTable),X
@@ -137,10 +126,30 @@ ksetprocessstate:
 ; A and X should be 8b
 ksetcurrentprocessstate:
     pha
-    lda.l kActiveProcessId
+    lda.l kCurrentPID
     tax
     pla
     sta.l kProcessStatusTable,X
+    rtl
+
+; Kill process with ID in X
+kkill:
+    .INDEX 8
+    sep #$20 ; 8b A
+    phb
+    .ChangeDataBank $7E
+
+    .DisableInt__
+    stz loword(kProcessStatusTable),X ; set status to PROCESS_NULL
+; remove process from active list
+
+    .RestoreInt__
+
+    cpx loword(kCurrentPID)
+    bne +
+        ; if Active process, reschedule without storing context
+        jml KernelIRQ2__@entrypoint
+    +:
     rtl
 
 .ENDS
