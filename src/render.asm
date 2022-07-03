@@ -4,13 +4,24 @@
 .SECTION "RenderInterrupt" FREE
 
 KernelVBlank__:
+    sei
     rep #$20 ; 16b A
     pha
-    sep #$20 ; 8b A
-    lda.l RDNMI
     ; disable interrupts
+    sep #$20 ; 8b A
     lda #%00000001
     sta.l NMITIMEN
+    ; Check if NMI is truely disabled
+    lda.l kNMITIMEN
+    bit #$80
+    bne +
+        ; restore
+        rep #$20
+        pla
+        rti
+    +:
+    ; Deactivate NMI
+    lda.l RDNMI
     ; Go to FASTROM section
     jml KernelVBlank2__
 
@@ -24,13 +35,11 @@ __EmptyData__:
 
 KernelVBlank2__:
     ; save context
-    rep #$30 ; 16b AXY
-    phx
-    phy
-    phb
-    phd
-    .PushStack $1F
+    .ContextSave_NOA__
+    ; change to vblank stack
+    .SetStack $007F
     ; f-blank
+    sep #$20 ; 8b A
     lda #%10001111
     sta.l INIDISP
     ; call update printer
@@ -39,18 +48,31 @@ KernelVBlank2__:
     sep #$20 ; 8b A
     lda #%00001111
     sta.l INIDISP
-    ; restore context
-    .RestoreStack
-    pld
-    plb
-    ply
-    plx
-    ; re-enable interrupts
+    ; switch process
+    sep #$30 ; 8b AXY
+    ; Check if IRQ is disabled
     lda.l kNMITIMEN
-    sta.l NMITIMEN
-    rep #$20 ; 16b A
-    pla
-    rti
+    bit #$30
+    bne +
+        ; restore
+        .ChangeDataBank $7E
+        lda loword(kActiveProcessId)
+        asl
+        tay
+        rep #$10 ; 16b XY
+        ldx loword(kProcessSPBackupTable),Y
+        txs
+        pld
+        plb
+        ply
+        plx
+        lda kNMITIMEN ; re-enable interrupts
+        sta.l NMITIMEN
+        rep #$20 ; 16b A
+        pla ; finalize context switch
+        rti
+    +:
+    jml KernelIRQ2__@entrypoint
 
 ; Copy palette to CGRAM
 ; PUSH order:

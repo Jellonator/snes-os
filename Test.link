@@ -4,3 +4,4 @@ obj/init.obj
 obj/layout.obj
 obj/render.obj
 obj/kprint.obj
+obj/process.obj

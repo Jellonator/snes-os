@@ -85,24 +85,6 @@
 
 .define BYTES_PER_TILE16 32
 
-.MACRO .BEGININTERRUPT
-    phb
-    phd
-    rep #$30
-    pha
-    phx
-    phy
-.ENDM
-
-.MACRO .ENDINTERRUPT
-    rep #$30
-    ply
-    plx
-    pla
-    pld
-    plb
-.ENDM
-
 .MACRO .ChangeDataBank ARGS bank
     pea bank + ($0100*(bank))
     plb
@@ -178,6 +160,12 @@
     ldx #newstacksp
     txs
     phy
+.ENDM
+
+.MACRO .SetStack ARGS newstacksp
+    rep #$10
+    ldx #newstacksp
+    txs
 .ENDM
 
 .MACRO .RestoreStack
