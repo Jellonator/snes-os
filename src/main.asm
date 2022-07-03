@@ -204,6 +204,29 @@ TestProcess:
     ldy #loword(__teststr2)
     jsl kputstring
     plb
+; kill?
+    lda $01,S
+    cmp #'z'
+    bne +
+        ; create new process
+        sep #$20 ; 8b A
+        lda #'a'
+        pha
+        pea 1
+        pea 32
+        lda #bankbyte(TestProcess)
+        pha
+        pea loword(TestProcess)
+        jsl kcreateprocess
+        jsl kresumeprocess
+        ; kill existing process
+        sep #$10
+        lda.l kCurrentPID
+        tax
+        jsl kkill
+    +:
+    inc A
+    sta $01,S
 ; wait
     lda #PROCESS_WAIT_NMI
     jsl ksetcurrentprocessstate

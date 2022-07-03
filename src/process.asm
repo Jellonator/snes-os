@@ -140,16 +140,25 @@ kkill:
     .ChangeDataBank $7E
 
     .DisableInt__
-    stz loword(kProcessStatusTable),X ; set status to PROCESS_NULL
-; remove process from active list
-
-    .RestoreInt__
-
+    ; set status to PROCESS_NULL
+    stz loword(kProcessStatusTable),X
+    ; remove process from active list
+    .ListRemoveX kListActive
+    ; add to null list
+    .ListAddX kListNull
+    ; TODO: memory management; return resources to kernel
     cpx loword(kCurrentPID)
     bne +
+        ; re-enable interrupts in the future
+        pla
+        sta kNMITIMEN
+        ; make init the active process
+        lda #1
+        sta loword(kCurrentPID)
         ; if Active process, reschedule without storing context
         jml KernelIRQ2__@entrypoint
     +:
+    .RestoreInt__
     rtl
 
 .ENDS
