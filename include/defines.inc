@@ -40,3 +40,7 @@
 
 ; Terminal info
 .DEFINE KTERM_MAX_BUFFER_SIZE 784
+
+; Semaphore info
+.DEFINE KSEM_PID_FREE $80 ; top bit of PID means slot is free
+.DEFINE KSEM_NUM 63

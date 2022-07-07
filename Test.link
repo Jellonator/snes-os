@@ -5,3 +5,7 @@ obj/layout.obj
 obj/render.obj
 obj/kprint.obj
 obj/process.obj
+obj/shell.obj
+obj/lib.obj
+obj/sem.obj
+obj/test.obj

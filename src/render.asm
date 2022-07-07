@@ -40,6 +40,7 @@ KernelVBlank2__:
     .ContextSave_NOA__
     ; change to vblank stack
     .SetStack $007F
+    .ChangeDataBank $7E
     ; f-blank
     sep #$20 ; 8b A
     lda #%10001111
@@ -63,7 +64,7 @@ KernelVBlank2__:
         bne @loop
     @loopend:
     ; TODO: make better by implementing ready/wait list
-    .ChangeDataBank $7E
+    ; .ChangeDataBank $7E
     ; Check if IRQ is disabled
     lda.l kNMITIMEN
     bit #$30

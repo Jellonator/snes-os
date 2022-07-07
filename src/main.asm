@@ -148,89 +148,25 @@ KernelInitialize2__:
     sta.l NMITIMEN
     sta loword(kNMITIMEN)
     cli
-; spawn a couple of processes
+; spawn test process
     sep #$20 ; 8b A
-    lda #'a'
+    pea 0  ; 0 args
+    pea 64 ; 64b stack
+    lda #bankbyte(KTestProgram__)
     pha
-    pea 1
-    pea 32
-    lda #bankbyte(TestProcess)
-    pha
-    pea loword(TestProcess)
+    pea loword(KTestProgram__)
     jsl kcreateprocess
     jsl kresumeprocess
-    sep #$20 ; 8b A
-    lda #'b'
-    sta $08,s
-    jsl kcreateprocess
-    jsl kresumeprocess
-    sep #$20 ; 8b A
-    lda #'c'
-    sta $08,s
-    jsl kcreateprocess
-    jsl kresumeprocess
-    sep #$30 ; 16b A
+    rep #$30 ; 16b A
     pla
     pla
     pla
+    sep #$30 ; 8b A
     pla
 ; Finally, just become an infinite loop as process 1
     jmp KernelLoop__
 KernelLoop__:
     jsl kreschedule
     jmp KernelLoop__
-
-__teststr1:
-    .DB "Hello from \0"
-__teststr2:
-    .DB "!\n\0"
-
-TestProcess:
-; put __teststr1
-    rep #$10 ; 16b XY
-    phb
-    .ChangeDataBank bankbyte(__teststr1)
-    ldy #loword(__teststr1)
-    jsl kputstring
-    plb
-; put char
-    sep #$20 ; 8b A
-    lda $01,s
-    jsl kputc
-; put __teststr2
-    rep #$10 ; 16b XY
-    phb
-    .ChangeDataBank bankbyte(__teststr2)
-    ldy #loword(__teststr2)
-    jsl kputstring
-    plb
-; kill?
-    lda $01,S
-    cmp #'z'
-    bne +
-        ; create new process
-        sep #$20 ; 8b A
-        lda #'a'
-        pha
-        pea 1
-        pea 32
-        lda #bankbyte(TestProcess)
-        pha
-        pea loword(TestProcess)
-        jsl kcreateprocess
-        jsl kresumeprocess
-        ; kill existing process
-        sep #$10
-        lda.l kCurrentPID
-        tax
-        jsl kkill
-    +:
-    inc A
-    sta $01,S
-; wait
-    lda #PROCESS_WAIT_NMI
-    jsl ksetcurrentprocessstate
-    jsl kreschedule
-    jmp TestProcess
 
 .ENDS
