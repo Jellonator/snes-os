@@ -151,8 +151,100 @@ strtoiw:
     @pos:
         jmp strtouw
 
-; write A to string in X
+; write uint16 A to string X
+; Afterwards, X will point to end of string (*X == '\0')
 writeuw:
+    .INDEX 16
+    .ACCU 16
+    ; special case: A==0
+    cmp.w #0
+    bne +
+        lda.w #'0'
+        sta.w $0000,X ; write "0\0" to *x
+        inx
+        rtl
+    +:
+    ; first: determine size of X,
+    ; allocate space accordingly
+    cmp.w #10
+    bcc @d1
+    cmp.w #100
+    bcc @d2
+    cmp.w #1000
+    bcc @d3
+    cmp.w #10000
+    bcc @d4
+; @d5:
+    inx
+@d4:
+    inx
+@d3:
+    inx
+@d2:
+    inx
+@d1:
+    inx
+; start
+    phx
+    sta.b $02
+    sep #$20 ; 8b A
+    .StartMul
+    lda #-'0'
+    sta.b $00 ; character to write to X
+    rep #$20 ; 16b A
+    lda.b $02
+    @loop:
+    ; do {
+    ;   digit = A % 10;
+    ;   A = A / 10;
+    ;   --X;
+    ;   *X = '0' + digit;
+    ; } while (A);
+        sta.l DIVU_DIVIDEND
+        sep #$20 ; 8b A
+        lda.b #10
+        sta.l DIVU_DIVISOR
+    ; have to wait 16 cycles, so function can be made more
+    ; efficient by packing instructions into this section
+        lda.b $00     ; 3
+        clc           ; 2
+        adc #'0'      ; 2
+        sta.w $0000,X ; 5
+        dex           ; 2
+        nop           ; 2
+        lda.l DIVU_REMAINDER ; 8b remainder
+        sta.b $00
+        rep #$20
+        lda.l DIVU_QUOTIENT
+        bne @loop
+    ; write last (first?) character
+    sep #$20
+    lda.b $00
+    clc
+    adc #'0'
+    sta.w $0000,X
+; end
+    .EndMul
+    plx
     rtl
+
+; write int16 A to string X
+; Afterwards, X will point to end of string (*X == '\0')
+writeiw:
+    .INDEX 16
+    .ACCU 16
+    bit #$8000
+    beq +
+    pha
+    lda #'-'
+    sta.w $0000,X
+    inx
+    pla
+    ; two's complement
+    eor.w #$FFFF
+    sec
+    adc.w #0
+    +:
+    jmp writeuw
 
 .ENDS
