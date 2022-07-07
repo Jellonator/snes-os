@@ -312,6 +312,111 @@ KTestProgram__:
     .ACCU 16
     .CheckAEq -32768
     .EndGroup
+    ; TEST writeuw
+    .StartGroup "WRITEUW"
+    rep #$30 ; 16b AXY
+    tdc
+    clc
+    adc #$08
+    sta.b $06 ; $06 = string buf
+    tax ; X = D + 8
+    lda #420
+    jsl writeuw
+    ldx.b $06
+    ldy.w #_testnum_420
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #0
+    jsl writeuw
+    ldx.b $06
+    ldy.w #_testnum_0
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #32767
+    jsl writeuw
+    ldx.b $06
+    ldy.w #_testnum_32767
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #65535
+    jsl writeuw
+    ldx.b $06
+    ldy.w #_testnum_65535
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    .EndGroup
+    ; TEST writeiw
+    .StartGroup "WRITEIW"
+    rep #$30 ; 16b AXY
+    tdc
+    clc
+    adc #$08
+    sta.b $06 ; $06 = string buf
+    tax ; X = D + 8
+    lda #420
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_420
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #0
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_0
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #32767
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_32767
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #-32767
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_N32767
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #-32768
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_N32768
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    rep #$30 ; 16b AXY
+    ldx.b $06
+    lda #-420
+    jsl writeiw
+    ldx.b $06
+    ldy.w #_testnum_N420
+    jsl strcmp
+    .ACCU 8
+    .CheckAEq 0
+    .EndGroup
+
     ; end
     @loop:
     jmp @loop
