@@ -146,20 +146,17 @@
     lda.l kCurrentPID
     and #$FF
     asl
-    tay
-    tsx
-    txa
-    tyx
+    tax
+    tsc
     sta.l kProcessSPBackupTable,X
 .ENDM
 
 .MACRO .PushStack ARGS newstacksp
-    rep #$10 ; 16b XY
-    tsx
-    txy
+    rep #$30 ; 16b aXY
+    tsc
     ldx #newstacksp
     txs
-    phy
+    pha
 .ENDM
 
 .MACRO .SetStack ARGS newstacksp
@@ -196,6 +193,17 @@
     pla
     sta.l kNMITIMEN
     sta.l NMITIMEN
+.ENDM
+
+; use this before using multiply registers
+.MACRO .StartMul
+    ; just disable interrupts for now
+    .DisableInt__
+.ENDM
+
+; use this after using multiply registers
+.MACRO .EndMul
+    .RestoreInt__
 .ENDM
 
 .MACRO .DCOLOR_RGB5 ARGS R, G, B
@@ -246,5 +254,76 @@
     sta.w loword(kProcessPrevIdTable),Y ; lsbase->prev = X
     ply                                 ;   Y = lsbase->prev
     sta.w loword(kProcessNextIdTable),Y ; lsbase->prev->next = X
+@@@@@\.\@end:
+.ENDM
+
+.MACRO .BranchIfDigit ARGS target
+    cmp #'0'
+    bcc @@@@@\.\@
+    cmp #'9'+1
+    bcc target
+@@@@@\.\@:
+.ENDM
+
+.MACRO .BranchIfNotDigit ARGS target
+    cmp #'0'
+    bcc target
+    cmp #'9'+1
+    bcs target
+.ENDM
+
+.MACRO .BranchIfAlpha ARGS target
+    cmp #'A'
+    bcc @@@@@\.\@end
+    cmp #'Z'+1
+    bcc target
+    cmp #'a'
+    bcc @@@@@\.\@end
+    cmp #'z'+1
+    bcc target
+@@@@@\.\@end:
+.ENDM
+
+.MACRO .BranchIfNotAlpha ARGS target
+    cmp #'A'
+    bcc target
+    cmp #'Z'+1
+    bcc @@@@@\.\@end
+    cmp #'a'
+    bcc target
+    cmp #'z'+1
+    bcs target
+@@@@@\.\@end:
+.ENDM
+
+.MACRO .BranchIfAlnum ARGS target
+    cmp #'0'
+    bcc @@@@@\.\@end
+    cmp #'9'+1
+    bcc target
+    cmp #'A'
+    bcc @@@@@\.\@end
+    cmp #'Z'+1
+    bcc target
+    cmp #'a'
+    bcc @@@@@\.\@end
+    cmp #'z'+1
+    bcc target
+@@@@@\.\@end:
+.ENDM
+
+.MACRO .BranchIfNotAlnum ARGS target
+    cmp #'0'
+    bcc target
+    cmp #'9'+1
+    bcc @@@@@\.\@end
+    cmp #'A'
+    bcc target
+    cmp #'Z'+1
+    bcc @@@@@\.\@end
+    cmp #'a'
+    bcc target
+    cmp #'z'+1
+    bcs target
 @@@@@\.\@end:
 .ENDM

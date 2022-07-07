@@ -15,7 +15,7 @@
     kProcessDirectPageCountTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessNextIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessPrevIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT
+    kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT+1
 ; terminal info
     kTermPrintVMEMPtr dw ; index of VMEM pointer
     kTermOffY dw ; Y-offset of terminal, used for scrolling
@@ -23,6 +23,9 @@
     kTermBufferLoop db ; if non-zero: write bytes from kTermBufferCount to
 ; buffer size, then from 0 to kTermBufferCount
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
+; semaphore info
+    kSemCountTable ds KSEM_NUM
+    kSemPIDTable ds KSEM_NUM
     _kMemoryEnd db
 .ENDE
 

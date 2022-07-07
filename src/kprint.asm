@@ -1,10 +1,9 @@
 .include "base.inc"
 
-.BANK $01 SLOT "ROM"
+.BANK $02 SLOT "ROM"
 .SECTION "KPrintAssets" FREE
 
-KPrintFontAsset__:
-    .incbin "assets/font_ascii.bin"
+.include "assets.inc"
 
 KPrintPalette__:
     .DCOLOR_RGB5  0,  0,  0
@@ -104,9 +103,9 @@ KInitPrinter__:
     pea BG1_CHARACTER_BASE_ADDR
     pea 16 * 16 * 8 * 2 ; 16x16, 2bpp
     sep #$20 ; 8 bit A
-    lda #bankbyte(KPrintFontAsset__)
+    lda #bankbyte(sprites@KPrintFontAsset__)
     pha
-    pea loword(KPrintFontAsset__)
+    pea loword(sprites@KPrintFontAsset__)
     jsl KCopyVMem
     sep #$20 ; 8 bit A
     pla

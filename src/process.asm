@@ -82,8 +82,7 @@ kcreateprocess:
     clc
     adc #13+1
     tay ; dest = newSP+{register store size}
-    tsx
-    txa
+    tsc
     clc
     adc #$0B+3
     tax ; source = localSP+$0B+3
