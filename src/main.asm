@@ -82,10 +82,7 @@ KernelIRQ2__:
 KernelInitialize2__:
     ; Disable rendering temporarily
     sep #$20 ; 8b A
-    lda #%10000000
-    sta.l INIDISP
-    ; re-enable rendering
-    lda #%00001111
+    lda #%10001111
     sta.l INIDISP
     ; Enable joypad, disable interrupts
     sei
@@ -134,35 +131,27 @@ KernelInitialize2__:
     sta loword(kProcessDirectPageCountTable + 1)
     sta loword(kProcessNextIdTable + 1)
     sta loword(kProcessPrevIdTable + 1)
-; other initialization
+; render initialization
+    jsl KRenderInit__
     jsl KInitPrinter__
 ; re-enable IRQ/NMI
     rep #$20
     lda #128 ; choose close to center of screen to
     ; minimize the chance of overlap with NMI
     sta.l HTIME
-    lda #160 ; start on first visible scanline
+    lda #110 ; middle of screen
     sta.l VTIME
     sep #$20
-    lda #%10100001
+    lda #%10110001
     sta.l NMITIMEN
     sta loword(kNMITIMEN)
     cli
+; re-enable rendering
+    lda #%00001111
+    sta.l INIDISP
 ; spawn test process
-    sep #$20 ; 8b A
-    pea 0  ; 0 args
-    pea 64 ; 64b stack
-    lda #bankbyte(KTestProgram__)
-    pha
-    pea loword(KTestProgram__)
-    jsl kcreateprocess
-    jsl kresumeprocess
-    rep #$30 ; 16b A
-    pla
-    pla
-    pla
-    sep #$30 ; 8b A
-    pla
+    .CreateReadyProcess KTestProgram__, 64, 0
+    .CreateReadyProcess os_shell, 64, 0
 ; Finally, just become an infinite loop as process 1
     jmp KernelLoop__
 KernelLoop__:

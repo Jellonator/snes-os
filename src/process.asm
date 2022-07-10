@@ -145,6 +145,16 @@ kkill:
     .ListRemoveX kListActive
     ; add to null list
     .ListAddX kListNull
+    ; if current process is renderer, then return renderer to OS
+    sep #$20 ; 8b A
+    cpx loword(kRendererProcess)
+    bne @skipremoverenderer
+        phx
+        php
+        jsl KRenderInit__
+        plp
+        plx
+    @skipremoverenderer:
     ; TODO: memory management; return resources to kernel
     cpx loword(kCurrentPID)
     bne +
