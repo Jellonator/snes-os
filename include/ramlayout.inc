@@ -27,6 +27,17 @@
     kSemCountTable ds KSEM_NUM
     kSemPIDTable ds KSEM_NUM
     _kMemoryEnd db
+; joypad inputs
+    kJoy1Raw dw
+    kJoy1Press dw
+    kJoy1Held dw
+.ENDE
+
+; certain OS memory values must be contained in bank 0, namely jump pointers
+.ENUM $7E0008
+; Render info
+    kRendererAddr dl
+    kRendererProcess db
 .ENDE
 
 .DEFINE KERNEL_MEMORY_USED loword(_kMemoryEnd)

@@ -67,6 +67,11 @@
 .define TIMEUP $4211
 .define HVBJOY $4212
 .define RDIO $4213
+; joypad registers
+.define JOY1INPUT $4218
+.define JOY2INPUT $421A
+.define JOY3INPUT $421C
+.define JOY4INPUT $421E
 ; unsigned multiplication registers
 .define MULTU_A $4202
 .define MULTU_B $4203

@@ -416,9 +416,10 @@ KTestProgram__:
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-
-    ; end
-    @loop:
-    jmp @loop
+    sep #$30
+    lda.l kCurrentPID
+    tax
+    jsl kkill
+    jsl kreschedule
 
 .ENDS

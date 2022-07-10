@@ -35,6 +35,14 @@ KernelVBlank__:
 __EmptyData__:
     .dw 0
 
+KRenderInit__:
+    rep #$20
+    lda #loword(KUpdatePrinter__)
+    sta.l kRendererAddr
+    lda #bankbyte(KUpdatePrinter__) | $0100
+    sta.l kRendererAddr+2
+    rtl
+
 KernelVBlank2__:
     ; save context
     .ContextSave_NOA__
@@ -45,8 +53,8 @@ KernelVBlank2__:
     sep #$20 ; 8b A
     lda #%10001111
     sta.l INIDISP
-    ; call update printer
-    jsl KUpdatePrinter__
+    ; call renderer
+    .JSLAL loword(kRendererAddr)
     ; stop f-blank
     sep #$30 ; 8b AXY
     lda #%00001111
@@ -64,7 +72,7 @@ KernelVBlank2__:
         bne @loop
     @loopend:
     ; TODO: make better by implementing ready/wait list
-    ; .ChangeDataBank $7E
+    jsr KReadInput__
     ; Check if IRQ is disabled
     lda.l kNMITIMEN
     bit #$30
@@ -88,6 +96,32 @@ KernelVBlank2__:
     +:
     ; switch process
     jml KernelIRQ2__@entrypoint
+
+KReadInput__:
+    ; loop until controller allows itself to be read
+    rep #$20 ; 8 bit A
+@read_input_loop:
+    lda.l HVBJOY
+    and #$01
+    bne @read_input_loop
+
+    ; Read input
+    rep #$30 ; 16 bit AXY
+    lda.l kJoy1Raw
+    tax
+    lda.l JOY1INPUT
+    sta.l kJoy1Raw
+    txa
+    eor.l kJoy1Raw
+    and.l kJoy1Raw
+    sta.l kJoy1Press
+    txa
+    and.l kJoy1Raw
+    sta.l kJoy1Held
+    ; Not worried about controller validity for now
+
+    sep #$30 ; 8 bit AXY
+    rts
 
 ; Copy palette to CGRAM
 ; PUSH order:
@@ -203,6 +237,19 @@ KClearVMem:
     lda #$01
     sta MDMAEN ; begin transfer
     plb
+    rtl
+
+; Set renderer
+;   address [dl] $04
+KSetRenderer:
+    rep #$20 ; 16b A
+    lda $04,s
+    sta.l kRendererAddr
+    sep #$20
+    lda $06,s
+    sta.l kRendererAddr+2
+    lda.l kCurrentPID
+    sta.l kRendererProcess
     rtl
 
 .ENDS

@@ -327,3 +327,28 @@
     bcs target
 @@@@@\.\@end:
 .ENDM
+
+.MACRO .CreateReadyProcess ARGS proc, stack, args
+    sep #$20
+    pea args
+    pea stack
+    lda #bankbyte(proc)
+    pha
+    pea loword(proc)
+    jsl kcreateprocess
+    jsl kresumeprocess
+    rep #$20 ; 16b A
+    pla
+    pla
+    pla
+    sep #$20 ; 8b A
+    pla
+.ENDM
+
+; jump to subroutine absolute long
+.MACRO .JSLAL ARGS addr
+    phk
+    pea @@@@@\.\@ - 1
+    jml.w [addr]
+    @@@@@\.\@:
+.ENDM
