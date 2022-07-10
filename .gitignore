@@ -6,5 +6,4 @@ include/assets.inc
 include/*.bin
 include/sprites/
 include/palettes/
-assets/
 *.png~

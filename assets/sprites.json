@@ -1,0 +1,17 @@
+[
+    {
+        "name": "KPrintFontAsset__",
+        "src": "assets/sprites/font_ascii.raw",
+        "depth": 4
+    },
+    {
+        "name": "ShellUIAsset__",
+        "src": "assets/sprites/shell.raw",
+        "depth": 4
+    },
+    {
+        "name": "ShellUISprites__",
+        "src": "assets/sprites/shell_sprites.raw",
+        "depth": 16
+    }
+]
