@@ -155,6 +155,27 @@ kkill:
         plp
         plx
     @skipremoverenderer:
+; free memory used by process
+    phx ; push ID
+    rep #$10 ; 16b XY
+    .ChangeDataBank $7F
+    ldx #$0000
+    @memloop:
+        lda memblock_t.mPID,X
+        cmp $01,s
+        bne +
+            phx
+            php
+            jsl memfree ; free memory block
+            plp
+            plx
+        +:
+        ldy memblock_t.mnext,X
+        tyx
+        bne @memloop
+    .ChangeDataBank $7E
+    sep #$10 ; 8b XY
+    plx ; pull ID
     ; TODO: memory management; return resources to kernel
     cpx loword(kCurrentPID)
     bne +
@@ -168,6 +189,7 @@ kkill:
         jml KernelIRQ2__@entrypoint
     +:
     .RestoreInt__
+    plb
     rtl
 
 .ENDS
