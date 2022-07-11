@@ -134,6 +134,8 @@ KernelInitialize2__:
 ; render initialization
     jsl KRenderInit__
     jsl KInitPrinter__
+; mem init
+    jsl KMemInit__
 ; re-enable IRQ/NMI
     rep #$20
     lda #128 ; choose close to center of screen to

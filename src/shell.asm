@@ -72,7 +72,6 @@ ShellBackgroundData__:
     bFlags db
     wVMEMPtr dw
     pwStrBuf dw
-    strBuf ds 32
 .ENDE
 
 _shell_hide_ui:
@@ -233,6 +232,18 @@ _shell_init:
     sta.l SCRNDESTM
     ; initialize other
     jsr _shell_update_charset
+    pea 64
+    jsl memalloc
+    stx.b pwStrBuf
+    rep #$20
+    pla
+    ldy #0
+    sep #$20
+    -:
+    sta (pwStrBuf),Y
+    iny
+    dec A
+    bne -
     ; set renderer
     sep #$20
     lda #bankbyte(_shell_render)

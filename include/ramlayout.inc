@@ -6,6 +6,7 @@
     kListNull db ; null process list
     kListActive db ; active process list
     kNMITIMEN db ; stores current value of NMITEN (read-only) hardware register
+    kNextFreeMemoryBlock dw ; address of next free memory block
 ; Process info stored in tables
     kProcessStatusTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessFlagTable ds MAX_CONCURRENT_PROCESSES_COUNT
@@ -15,7 +16,7 @@
     kProcessDirectPageCountTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessNextIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
     kProcessPrevIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT+1
+    kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT
 ; terminal info
     kTermPrintVMEMPtr dw ; index of VMEM pointer
     kTermOffY dw ; Y-offset of terminal, used for scrolling
@@ -32,6 +33,8 @@
     kJoy1Press dw
     kJoy1Held dw
 .ENDE
+
+.DEFINE kMemList $7F0000
 
 ; certain OS memory values must be contained in bank 0, namely jump pointers
 .ENUM $7E0008

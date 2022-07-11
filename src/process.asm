@@ -71,7 +71,7 @@ kcreateprocess:
     sta.w 13,X ; program bank
     lda #%00000000
     sta.w 10,X ; processor status
-    lda #$7E
+    lda #$7F
     sta.w 3,X ; data bank
     rep #$20 ; 16b A
     tya
