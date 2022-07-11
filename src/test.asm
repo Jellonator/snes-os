@@ -416,10 +416,13 @@ KTestProgram__:
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-    sep #$30
-    lda.l kCurrentPID
-    tax
-    jsl kkill
-    jsl kreschedule
+    jsl KPrintMemoryDump__
+    ; sep #$30
+    ; lda.l kCurrentPID
+    ; tax
+    ; jsl kkill
+    -:
+    ; jsl kreschedule
+    bra -
 
 .ENDS

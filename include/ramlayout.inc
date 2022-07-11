@@ -24,6 +24,7 @@
     kTermBufferLoop db ; if non-zero: write bytes from kTermBufferCount to
 ; buffer size, then from 0 to kTermBufferCount
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
+    kTempBuffer ds 256 ; generic temporary buffer
 ; semaphore info
     kSemCountTable ds KSEM_NUM
     kSemPIDTable ds KSEM_NUM

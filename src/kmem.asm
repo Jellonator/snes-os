@@ -145,8 +145,10 @@ memfree:
     tax
 ; mark as free
     stz.w memblock_t.mPID,X
-; merge with prev if it is free
+; merge with prev if it is free (and not null)
     ldy.w memblock_t.mprev,X
+    cpy #$FFFF
+    beq +
     lda.w memblock_t.mPID,Y
     bne +
         ; perform merge
@@ -163,6 +165,7 @@ memfree:
     +:
 ; merge with next if it is free
     ldy.w memblock_t.mprev,X
+    beq +
     lda.w memblock_t.mPID,Y
     bne +
         ; perform merge
@@ -182,6 +185,77 @@ memfree:
     bcs +
     sta.l kNextFreeMemoryBlock
     +:
+; end
+    ; restore bank
+    plb ; -1 (1)
+    ; restore interrupts
+    sep #$20 ; 8b A
+    .RestoreInt__ ; -1 (0)
+    rtl
+
+; debug memory print
+KPrintMemoryDump__:
+; disable interrupts
+    sep #$20 ; 8b A
+    .DisableInt__ ; +1 (1)
+; change data bank
+    rep #$30 ; 16b AXY
+    phb ; +1 (2)
+    
+; begin
+    ldy #$0000 ; mem block ptr in $7F
+@loop:
+    ldx #loword(kTempBuffer) ; string buffer in $7E
+    ; write PID
+    .ChangeDataBank $7F
+    sep #$20 ; 8b A
+    lda.w memblock_t.mPID,Y
+    phy
+    .ChangeDataBank $7E
+    jsl writeptrb
+    ; write space
+    lda #' '
+    sta.w $0000,X
+    inx
+    ; write pointer start
+    rep #$20 ; 16b A
+    lda $01,s
+    clc
+    adc #8
+    jsl writeptrw
+    ; write colon
+    pha
+    sep #$20 ; 8b A
+    lda #':'
+    sta.w $0000,X
+    inx
+    ; write pointer end
+    .ChangeDataBank $7F
+    rep #$20 ; 16b A
+    pla
+    sec
+    sbc #1
+    clc
+    ply
+    phy
+    adc.w memblock_t.mlength,Y
+    .ChangeDataBank $7E
+    jsl writeptrw
+    ; write end
+    ; sep #$20
+    lda #'\n'
+    sta.w $0000,X
+    ; inx
+    ; stz $0000,X
+    ; write to print
+    ldy #loword(kTempBuffer)
+    jsl kputstring
+    .ChangeDataBank $7F
+    rep #$20 ; 16b A
+    ply
+    lda.w memblock_t.mnext,Y
+    tay
+    bne @loop
 ; end
     ; restore bank
     plb ; -1 (1)

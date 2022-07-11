@@ -151,6 +151,92 @@ strtoiw:
     @pos:
         jmp strtouw
 
+_chtableupper:
+    .DB "0123456789"
+    .DB "ABCDEFGHIJ"
+    .DB "KLMNOPQRST"
+    .DB "UVWXYZ"
+    .DSB (256-36-1), '?'
+    .db '\0'
+
+; write uint8 A to string X as pointer
+; Afterwards, X will point to end of string
+writeptrb
+    .INDEX 16
+    .ACCU 8
+    pha
+    lda #0
+    xba ; make sure top byte is 0
+    txy
+    lda $01,s
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    lda $01,s
+    and #$0F
+    tax
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    tyx
+    stz.w $0000,X
+    pla
+    rtl
+
+; write uint16 A to string X as pointer
+; Afterwards, X will point to end of string
+writeptrw:
+    .INDEX 16
+    .ACCU 16
+    pha
+    txy
+    ; first char
+    and #$F000
+    xba
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    sep #$20
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    ; second char
+    lda $02,s
+    and #$0F
+    tax
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    ; third char
+    lda $01,s
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    ; fourth char
+    lda $01,s
+    and #$0F
+    tax
+    lda.l _chtableupper,X
+    sta.w $0000,Y
+    iny
+    tyx
+    stz.w $0000,X
+    rep #$20
+    pla
+    rtl
+
 ; write uint16 A to string X
 ; Afterwards, X will point to end of string (*X == '\0')
 writeuw:
@@ -186,11 +272,13 @@ writeuw:
     inx
 ; start
     phx
+    txy
     sta.b $02
     sep #$20 ; 8b A
     .StartMul
-    lda #-'0'
+    lda #$FF
     sta.b $00 ; character to write to X
+    stz.b $01
     rep #$20 ; 16b A
     lda.b $02
     @loop:
@@ -206,12 +294,10 @@ writeuw:
         sta.l DIVU_DIVISOR
     ; have to wait 16 cycles, so function can be made more
     ; efficient by packing instructions into this section
-        lda.b $00     ; 3
-        clc           ; 2
-        adc #'0'      ; 2
-        sta.w $0000,X ; 5
-        dex           ; 2
-        nop           ; 2
+        ldx.b $00             ; 4
+        lda.l _chtableupper,X ; 5
+        sta.w $0000,Y         ; 5
+        dey                   ; 2
         lda.l DIVU_REMAINDER ; 8b remainder
         sta.b $00
         rep #$20
@@ -219,10 +305,9 @@ writeuw:
         bne @loop
     ; write last (first?) character
     sep #$20
-    lda.b $00
-    clc
-    adc #'0'
-    sta.w $0000,X
+    ldx.b $00
+    lda.l _chtableupper,X
+    sta.w $0000,Y
 ; end
     .EndMul
     plx
