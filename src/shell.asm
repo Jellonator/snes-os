@@ -11,13 +11,13 @@ ShellTextPalette__:
 ; selected color
     .DCOLOR_RGB5  0,  0,  0
     .DCOLOR_RGB5 31, 31, 31
-    .DCOLOR_RGB5 31, 31, 22
-    .DCOLOR_RGB5 22, 22, 11
+    .DCOLOR_RGB5 24, 20, 12
+    .DCOLOR_RGB5  0,  0,  0
 ; unselected color
     .DCOLOR_RGB5  0,  0,  0
-    .DCOLOR_RGB5 20, 20, 20
-    .DCOLOR_RGB5 18, 14, 20
-    .DCOLOR_RGB5 10, 10, 10
+    .DCOLOR_RGB5 12, 12, 12
+    .DCOLOR_RGB5 11, 10, 11
+    .DCOLOR_RGB5  0,  0,  0
 
 ShellBackPalette__:
     .DCOLOR_RGB5  0,  0,  0
@@ -88,6 +88,7 @@ _char_addresses:
     bUpdateFlags db
     ; wVMEMPtr dw
     ; string buffer
+    wCharLinePos dw
     wLenStrBuf dw
     pwStrBuf dw
     ; draw buffer; 4-byte instructions of VMEM addr[dw]+Value[dw] pairs
@@ -279,6 +280,64 @@ _ShellSymSymbols:
     .db '"'
     .db "':;"
 
+_shell_pushchar:
+    rep #$30
+    lda.b wCharLinePos
+    cmp #28
+    bcc +
+        phb
+        .ChangeDataBank $7E
+        jsl KPrintNextRow__
+        plb
+        stz.b wCharLinePos
+    +
+    ; get VRAM address
+    rep #$30
+    lda.l kTermPrintVMEMPtr
+    and #$FFE0
+    clc
+    adc.b wCharLinePos
+    and #$03FF
+    clc
+    adc #BG4_DISPTEXT_TILE_BASE_ADDR; + ROW_START*32
+    ; lda.b wLenStrBuf
+    ; clc
+    ; adc #BG4_DISPTEXT_TILE_BASE_ADDR + ROW_START*32
+    ; store VRAM address
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    ; get char
+    jsr _get_selection_char
+    rep #$30
+    and #$00FF
+    ; ora #$0000
+    ; store char to VRAM
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    ; store char to buffer
+    ldy.b pwStrBuf
+    sta.b (wLenStrBuf),Y ; storing 16b which includes null terminator
+    inc.b wCharLinePos
+    inc.b wLenStrBuf
+    rts
+
+_shell_enter:
+    rep #$20
+    stz.b wLenStrBuf
+    stz.b wCharLinePos
+    phb
+    .ChangeDataBank $7E
+    jsl KPrintNextRow__
+    plb
+    rts
+
+_shell_backspace:
+    rts
+
 _shell_init:
     ; disable rendering and interrupts
     sep #$20
@@ -369,6 +428,7 @@ _shell_init:
     sta.b wLenStrBuf
     lda #0
     sta.b wLenDrawBuf
+    stz.b wCharLinePos
     sep #$20 ; 8b A
     sta.b bState
     sta.b bSelectPos
@@ -487,6 +547,13 @@ _shell_update:
         sta.b bSelectPos
     +:
     jsr _shell_push_select_pos
+    ; enter char
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_A
+    beq +
+        jsr _shell_pushchar
+    +:
     sep #$30
     ; wait for NMI and reschedule
     lda #PROCESS_WAIT_NMI
