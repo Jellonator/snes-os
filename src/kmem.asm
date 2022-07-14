@@ -1,7 +1,7 @@
 .include "base.inc"
 
 .DEFINE PAGE_SIZE 256
-.DEFINE MEMBLOCK_SIZE 8
+.DEFINE MEMBLOCK_SIZE 5
 .DEFINE MIN_MEM_ADDR $7F0000
 .DEFINE MAX_MAM_ADDR $7FFFFF
 
@@ -14,8 +14,6 @@ KMemInit__:
     sta.l kMemList + memblock_t.mnext
     sta.l kMemList + memblock_t.mPID
     sta.l kNextFreeMemoryBlock
-    lda #$FFF8
-    sta.l kMemList + memblock_t.mlength
     lda #$FFFF
     sta.l kMemList + memblock_t.mprev
     rtl
@@ -32,13 +30,23 @@ memalloc:
     .DisableInt__ ; +1 (1)
 ; change data bank
     rep #$30 ; 16b AXY
-    phb ; +1 (2)
-    .ChangeDataBank $7F
 ; round nbytes to MEMBLOCK_SIZE
-    lda 2+$04,s
+    lda 1+$04,s
     clc
     adc #MEMBLOCK_SIZE-1
-    and #$FFF8
+    ; and #$FFF8
+    sta.l DIVU_DIVIDEND
+    sep #$20
+    lda #MEMBLOCK_SIZE
+    sta.l DIVU_DIVISOR
+    rep #$20 ; 3
+    phb ; +1 (2)
+    .ChangeDataBank $7F ; 13
+    lda.l DIVU_QUOTIENT
+    asl
+    asl
+    clc
+    adc.l DIVU_QUOTIENT
     sta 2+$04,s
 ; begin
     lda.l kNextFreeMemoryBlock
@@ -52,27 +60,28 @@ memalloc:
     lda.w memblock_t.mPID,Y
     beq @continue ; block is not free, continue
 @enterloop:
-    lda.w memblock_t.mlength,Y
+    lda.w memblock_t.mnext,Y
+    sty $00 ; $00 = block1
+    sec
+    sbc $00
+    sec
+    sbc #MEMBLOCK_SIZE
     cmp 2+$04,s
     bcc @continue ; mlength < nbytes, continue
 ; found memory block
     beq @exactmem
 ; not exact mem, split block:
-    ; block2.mlength = block1.mlength-(8+nbytes)
-    lda.w memblock_t.mlength,Y
+    sta $02 ; $02 = mlength
     sec
     sbc #MEMBLOCK_SIZE
     sbc 2+$04,s
     beq @exactmemext ; block1.mlength == 8+nbytes, just use the entire block instead
-    pha ; +2 (4)
     tya
     clc
     adc #MEMBLOCK_SIZE
-    adc 4+$04,s
+    adc 2+$04,s
     tax ; X = block2/free block
     ; set up block2
-    pla ; -2 (2)
-    sta.w memblock_t.mlength,X ; block2->length = block1->length-8-nbytes
     lda.w memblock_t.mnext,Y
     sta.w memblock_t.mnext,X   ; block2->next = block1->next
     sta.w memblock_t.mPID,X    ; block2->mPID = 0
@@ -80,14 +89,13 @@ memalloc:
     sta.w memblock_t.mprev,X   ; block2->prev = block1
     ; modify block 1
     lda 2+$04,s
-    sta.w memblock_t.mlength,Y ; block1->length = nbytes
     txa
     sta.w memblock_t.mnext,Y   ; block1->next = block2
+    sta.l kNextFreeMemoryBlock ; kNextFreeMemoryBlock = block2
     lda.l kCurrentPID
     and #$00FF
     sta.w memblock_t.mPID,Y    ; block1->mPID = kCurrentPID
     ; set next free block
-    sta.l kNextFreeMemoryBlock ; kNextFreeMemoryBlock = block2
     tya
     clc
     adc #MEMBLOCK_SIZE
@@ -95,13 +103,11 @@ memalloc:
     bra @end
 @exactmemext:
     ; modify nbytes to match size of found block
-    lda.w memblock_t.mlength,Y
+    lda.w $02
     sta 2+$04,s
 @exactmem:
 ; Exact mem, use entire block
     ; update next free memory block
-    ; lda.w memblock_t.mNextFree,Y
-    ; sta.l kNextFreeMemoryBlock
     tyx
     @@loop:
         lda.w memblock_t.mnext,X
@@ -156,15 +162,10 @@ memfree:
         ; Y = prev
         lda.w memblock_t.mnext,X
         sta.w memblock_t.mnext,Y
-        lda.w memblock_t.mlength,X
-        clc
-        adc #MEMBLOCK_SIZE
-        adc memblock_t.mlength,Y
-        sta.w memblock_t.mlength,Y
         tyx
     +:
 ; merge with next if it is free
-    ldy.w memblock_t.mprev,X
+    ldy.w memblock_t.mnext,X
     beq +
     lda.w memblock_t.mPID,Y
     bne +
@@ -173,11 +174,6 @@ memfree:
         ; Y = next
         lda.w memblock_t.mnext,Y
         sta.w memblock_t.mnext,X
-        lda.w memblock_t.mlength,Y
-        clc
-        adc #MEMBLOCK_SIZE
-        adc memblock_t.mlength,X
-        sta.w memblock_t.mlength,X
     +:
 ; kNextFreeMemoryBlock = min(kNextFreeMemoryBlock, X)
     txa
@@ -221,7 +217,7 @@ KPrintMemoryDump__:
     rep #$20 ; 16b A
     lda $01,s
     clc
-    adc #8
+    adc #MEMBLOCK_SIZE
     jsl writeptrw
     ; write colon
     pha
@@ -238,7 +234,9 @@ KPrintMemoryDump__:
     clc
     ply
     phy
-    adc.w memblock_t.mlength,Y
+    ; adc.w memblock_t.mlength,Y
+    lda.w memblock_t.mnext,Y
+    dec A
     .ChangeDataBank $7E
     jsl writeptrw
     ; write end

@@ -8,6 +8,16 @@ ShellTextPalette__:
     .DCOLOR_RGB5 31, 31, 31
     .DCOLOR_RGB5 20, 16, 22
     .DCOLOR_RGB5 11, 11, 11
+; selected color
+    .DCOLOR_RGB5  0,  0,  0
+    .DCOLOR_RGB5 31, 31, 31
+    .DCOLOR_RGB5 31, 31, 22
+    .DCOLOR_RGB5 22, 22, 11
+; unselected color
+    .DCOLOR_RGB5  0,  0,  0
+    .DCOLOR_RGB5 20, 20, 20
+    .DCOLOR_RGB5 18, 14, 20
+    .DCOLOR_RGB5 10, 10, 10
 
 ShellBackPalette__:
     .DCOLOR_RGB5  0,  0,  0
@@ -67,11 +77,15 @@ ShellBackgroundData__:
 ; variables
 .ENUM $00
     bState db
-    bSelectIdx db
-    bNChars db
+    bSelectPos db
     bFlags db
-    wVMEMPtr dw
+    ; wVMEMPtr dw
+    ; string buffer
+    wLenStrBuf dw
     pwStrBuf dw
+    ; draw buffer; 4-byte instructions of VMEM addr[dw]+Value[dw] pairs
+    wLenDrawBuf dw
+    pwDrawBuf dw
 .ENDE
 
 _shell_hide_ui:
@@ -122,6 +136,7 @@ _shell_update_charset:
     -:
         lda.l (__ShellSymLower&$FF0000),X
         and #$00FF
+        ora #$0800
         inx
         sta.l VMDATA
         lda #0
@@ -206,11 +221,11 @@ _shell_init:
     ; copy palette
     pea $6000 | bankbyte(ShellTextPalette__)
     pea loword(ShellTextPalette__)
-    jsl KCopyPalette4
+    jsl KCopyPalette16
     sep #$20 ; 8b A
     lda #$00
     sta $04,s
-    jsl KCopyPalette4
+    jsl KCopyPalette16
     rep #$20
     pla
     pla
@@ -230,20 +245,23 @@ _shell_init:
     sta.l BG12NBA
     lda #%00001011
     sta.l SCRNDESTM
+    ; set scroll
+    lda #-DEADZONE_LEFT*8
+    sta.l BG1HOFS
+    lda #0
+    sta.l BG1HOFS
     ; initialize other
     jsr _shell_update_charset
-    pea 64
+    pea 256
     jsl memalloc
     stx.b pwStrBuf
     rep #$20
     pla
-    ldy #0
-    sep #$20
-    -:
-    sta (pwStrBuf),Y
-    iny
-    dec A
-    bne -
+    pea 256
+    jsl memalloc
+    stx.b pwDrawBuf
+    rep #$20
+    pla
     ; set renderer
     sep #$20
     lda #bankbyte(_shell_render)
@@ -262,6 +280,8 @@ _shell_init:
     lda #%00001111
     sta.l INIDISP
     .RestoreInt__
+    jsl kreschedule
+    jsl KPrintMemoryDump__
     rts
 
 _shell_render:
