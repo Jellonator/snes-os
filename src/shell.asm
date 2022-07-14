@@ -84,7 +84,7 @@ _char_addresses:
 .DEFINE CHAR_BUFFER_SIZE 28*10
 
 ; variables
-.ENUM $08
+.ENUM $10
     bState db
     bSelectPos db
     bUpdateFlags db
@@ -282,7 +282,14 @@ _ShellSymSymbols:
     .db '"'
     .db "':;"
 
-_shell_pushchar:
+_shell_push_current_char:
+    jsr _get_selection_char
+    jsr _shell_push_char
+    rts
+
+_shell_push_char:
+    .ACCU 8
+    pha
     rep #$30
     lda.b wLenStrBuf
     cmp #CHAR_BUFFER_SIZE
@@ -316,7 +323,8 @@ _shell_pushchar:
     inc.b wLenDrawBuf
     inc.b wLenDrawBuf
     ; get char
-    jsr _get_selection_char
+    sep #$20
+    pla
     rep #$30
     and #$00FF
     ; ora #$0000
@@ -332,7 +340,104 @@ _shell_pushchar:
     inc.b wLenStrBuf
     rts
 
+_shell_parse_command:
+    .DEFINE NStrArgs $06
+    .DEFINE StrBufLen $08
+    .DEFINE StrBuf $0A
+    .DEFINE PtrBuf $0C
+; parse line
+    ; allocate string buffer
+    rep #$20
+    lda.b wLenStrBuf
+    inc A
+    pha
+    jsl memalloc
+    rep #$30
+    stx.b StrBuf
+    ; allocate pointer buffer
+    jsl memalloc
+    rep #$30
+    stx.b PtrBuf
+    pla
+    lda.b PtrBuf
+    pha
+    lda.b StrBuf
+    pha
+    stz.b StrBufLen
+    stz.b NStrArgs
+    ; parse string
+    bra @enterspaceloop
+    @insertstr:
+        jsr @insert
+    @spaceloop:
+        inc.b pwStrBuf
+    @enterspaceloop:
+        lda.b (pwStrBuf)
+        and #$00FF
+        beq @endloop
+        cmp #' '
+        beq @spaceloop
+        ; character is not a space
+        sta.b (StrBuf)
+        inc.b StrBuf
+        inc.b StrBufLen
+    @charloop:
+        inc.b pwStrBuf
+        lda.b (pwStrBuf)
+        and #$00FF
+        beq @endloop
+        cmp #' '
+        beq @insertstr ; found space: insert string, then go to space loop
+        ; not a space, just insert
+        sta.b (StrBuf)
+        inc.b StrBuf
+        inc.b StrBufLen
+        bra @charloop
+    @endloop:
+    ; reached end of string
+    lda.b StrBufLen
+    beq +
+        jsr @insert
+    +:
+    plx
+    plx ; now contains `char **argv`
+    lda NStrArgs ; now contains `int argc`
+    rts
+    @insert:
+        ply
+        ; *ptrbuf = strbuf;
+        pla
+        sta.b (PtrBuf)
+        ; get new string buffer
+        inc.b StrBuf
+        lda StrBuf
+        pha
+        stz.b StrBufLen
+        ; ++ptrbuf;
+        inc.b PtrBuf
+        inc.b PtrBuf
+        inc.b NStrArgs
+        ; end
+        phy
+        rts
+.UNDEFINE StrBuf
+.UNDEFINE PtrBuf
+.UNDEFINE NStrArgs
+.UNDEFINE StrBufLen
+
+_shell_push_space:
+    sep #$20
+    lda #' '
+    jsr _shell_push_char
+    rts
+
 _shell_enter:
+    rep #$20
+    lda.b wLenStrBuf
+    beq @nocommand
+    jsr _shell_parse_command
+@nocommand:
+; clear data
     rep #$20
     stz.b wLenStrBuf
     stz.b wCharLinePos
@@ -610,7 +715,14 @@ _shell_update:
     lda.l kJoy1Press
     bit #JOY_A
     beq +
-        jsr _shell_pushchar
+        jsr _shell_push_current_char
+    +:
+    ; put space
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_Y
+    beq +
+        jsr _shell_push_space
     +:
     ; enter string
     rep #$20
