@@ -30,7 +30,7 @@ KPrintPalette__:
 .DEFINE MAX_TERM_WIDTH 28 ; maximum of 28 characters per row
 .DEFINE ROW_START 25 ; row to start writing to
 
-__KNextRow__:
+KPrintNextRow__:
     ; update vmem ptr
     rep #$20
     lda loword(kTermPrintVMEMPtr)
@@ -167,7 +167,7 @@ KUpdatePrinter__:
     cmp #'\n'
     bne @putchar
 ; @newline:
-    jsl __KNextRow__
+    jsl KPrintNextRow__
     rep #$30 ; 16b AXY
     bra @continue
 @putchar:
@@ -176,7 +176,7 @@ KUpdatePrinter__:
     and #$001F
     cmp #MAX_TERM_WIDTH-1
     bne +
-    jsl __KNextRow__
+    jsl KPrintNextRow__
     rep #$30 ; 16b AXY
     jmp @continue
     +:
