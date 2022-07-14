@@ -341,6 +341,50 @@ _shell_enter:
     rts
 
 _shell_backspace:
+    rep #$30
+    lda.b wLenStrBuf
+    bne +
+        rts
+    +:
+    ; decrement
+    dec.b wCharLinePos
+    dec.b wLenStrBuf
+    ; put null into buffer
+    sep #$20
+    lda #0
+    ldy.b pwStrBuf
+    sta.b (wLenStrBuf),Y
+    ; get VRAM address
+    rep #$20
+    lda.l kTermPrintVMEMPtr
+    and #$FFE0
+    clc
+    adc.b wCharLinePos
+    and #$03FF
+    clc
+    adc #BG4_DISPTEXT_TILE_BASE_ADDR; + ROW_START*32
+    ; store VRAM address
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    ; store VRAM value
+    lda #0
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    ; perform backspace if wLenStrBuf > 0 and wCharLinePos == 0
+    lda.b wLenStrBuf
+    beq +
+    lda.b wCharLinePos
+    bne +
+        lda #28
+        sta.b wCharLinePos
+        phb
+        .ChangeDataBank $7E
+        jsl KPrintPrevRow__
+        plb
+    +:
     rts
 
 _shell_init:
@@ -547,6 +591,13 @@ _shell_update:
         sta.b bSelectPos
     +:
     jsr _shell_push_select_pos
+    ; backspace
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_B
+    beq +
+        jsr _shell_backspace
+    +:
     ; put char
     rep #$20
     lda.l kJoy1Press

@@ -30,6 +30,26 @@ KPrintPalette__:
 .DEFINE MAX_TERM_WIDTH 28 ; maximum of 28 characters per row
 .DEFINE ROW_START 25 ; row to start writing to
 
+KPrintPrevRow__:
+    ; update vmem ptr
+    rep #$20
+    lda loword(kTermPrintVMEMPtr)
+    and #$FFE0
+    sec
+    sbc #$20
+    and #$03FF
+    sta loword(kTermPrintVMEMPtr)
+    ; update offset
+    lda loword(kTermOffY)
+    sec
+    sbc #8
+    sta loword(kTermOffY)
+    sep #$20 ; 8b A
+    sta.l BG4VOFS
+    xba
+    sta.l BG4VOFS
+    rtl
+
 KPrintNextRow__:
     ; update vmem ptr
     rep #$20
@@ -57,7 +77,7 @@ KPrintNextRow__:
     lda loword(kTermOffY)
     clc
     adc #8
-    sta loword(kTermOffY)    
+    sta loword(kTermOffY)
     sep #$20 ; 8b A
     sta.l BG4VOFS
     xba
