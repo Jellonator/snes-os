@@ -42,6 +42,8 @@
 ; Render info
     kRendererAddr dl
     kRendererProcess db
+    kRendererDP dw
+    kRendererDB db
 .ENDE
 
 .DEFINE KERNEL_MEMORY_USED loword(_kMemoryEnd)

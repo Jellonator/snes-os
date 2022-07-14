@@ -41,6 +41,11 @@ KRenderInit__:
     sta.l kRendererAddr
     lda #bankbyte(KUpdatePrinter__) | $0100
     sta.l kRendererAddr+2
+    lda #0
+    sta.l kRendererDP
+    sep #$20
+    lda #$7E
+    sta.l kRendererDB
     rtl
 
 KernelVBlank2__:
@@ -48,27 +53,33 @@ KernelVBlank2__:
     .ContextSave_NOA__
     ; change to vblank stack
     .SetStack $007F
-    .ChangeDataBank $7E
     ; f-blank
     sep #$20 ; 8b A
     lda #%10001111
     sta.l INIDISP
     ; call renderer
+    lda.l kRendererDB
+    pha
+    plb
+    rep #$20
+    lda.l kRendererDP
+    tcd
     .JSLAL loword(kRendererAddr)
     ; stop f-blank
+    .ChangeDataBank $7E
     sep #$30 ; 8b AXY
     lda #%00001111
     sta.l INIDISP
     ; make waiting processes ready
-    ldx loword(kListActive)
+    ldx.w loword(kListActive)
     beq @loopend
     @loop:
-        lda loword(kProcessStatusTable),X
+        lda.w loword(kProcessStatusTable),X
         and #$7F
-        sta loword(kProcessStatusTable),X
-        lda loword(kProcessNextIdTable),X
+        sta.w loword(kProcessStatusTable),X
+        lda.w loword(kProcessNextIdTable),X
         tax
-        cmp loword(kListActive)
+        cmp.w loword(kListActive)
         bne @loop
     @loopend:
     ; TODO: make better by implementing ready/wait list
@@ -243,9 +254,14 @@ KClearVMem:
 ;   address [dl] $04
 KSetRenderer:
     rep #$20 ; 16b A
+    tdc
+    sta.l kRendererDP
     lda $04,s
     sta.l kRendererAddr
     sep #$20
+    phb
+    pla
+    sta.l kRendererDB
     lda $06,s
     sta.l kRendererAddr+2
     lda.l kCurrentPID
