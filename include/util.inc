@@ -83,8 +83,6 @@
 @@@@@\.\@:
 .ENDM
 
-.define BYTES_PER_TILE16 32
-
 .MACRO .ChangeDataBank ARGS bank
     pea bank + ($0100*(bank))
     plb
