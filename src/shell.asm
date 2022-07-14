@@ -81,6 +81,8 @@ _char_addresses:
 
 .DEFINE SHFLAG_UPDATE_CHARS $80
 
+.DEFINE CHAR_BUFFER_SIZE 28*10
+
 ; variables
 .ENUM $08
     bState db
@@ -282,6 +284,11 @@ _ShellSymSymbols:
 
 _shell_pushchar:
     rep #$30
+    lda.b wLenStrBuf
+    cmp #CHAR_BUFFER_SIZE
+    bcc +
+        rts
+    +:
     lda.b wCharLinePos
     cmp #28
     bcc +
@@ -457,7 +464,7 @@ _shell_init:
     lda #%00001011
     sta.l SCRNDESTM
     ; initialize other
-    pea 256
+    pea CHAR_BUFFER_SIZE+1
     jsl memalloc
     stx.b pwStrBuf
     rep #$20 ; 16b A
