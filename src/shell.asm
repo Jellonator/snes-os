@@ -72,13 +72,20 @@ ShellBackgroundData__:
 .ENUMID STATE_CAPS
 .ENUMID STATE_SYMBOLS
 
+_char_addresses:
+    .dw __ShellSymLower
+    .dw __ShellSymLower
+    .dw __ShellSymUpper
+    .dw __ShellSymUpper
+    .dw _ShellSymSymbols
+
 .DEFINE SHFLAG_UPDATE_CHARS $80
 
 ; variables
-.ENUM $00
+.ENUM $08
     bState db
     bSelectPos db
-    bFlags db
+    bUpdateFlags db
     ; wVMEMPtr dw
     ; string buffer
     wLenStrBuf dw
@@ -103,7 +110,103 @@ _shell_show_ui:
     lda #STATE_LOWER
     sta.b bState
     lda #SHFLAG_UPDATE_CHARS
-    sta.b bFlags
+    sta.b bUpdateFlags
+    rts
+
+_get_selection_vaddr:
+    ; BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (i + 1)) + 2
+    rep #$20
+    lda.b bSelectPos
+    and #$00FF
+    cmp #20
+    bcs +
+        ; 0-19
+        cmp #10
+        bcs ++
+            ; 0-9
+            asl
+            clc
+            adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (0 + 1)) + 2
+            rts
+        ++:
+            ; 10-19
+            sec
+            sbc #10
+            asl
+            clc
+            adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (1 + 1)) + 2
+            rts
+    +:
+        ; 20-39
+        cmp #30
+        bcs ++
+            ; 20-29
+            sec
+            sbc #20
+            asl
+            clc
+            adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (2 + 1)) + 2
+            rts
+        ++:
+            ; 30-39
+            sec
+            sbc #30
+            asl
+            clc
+            adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (3 + 1)) + 2
+            rts
+
+_get_selection_char:
+    phb
+    .ChangeDataBank bankbyte(_char_addresses)
+    rep #$30 ; 16b AXY
+    lda.b bState
+    and #$00FF
+    asl
+    tax
+    lda.b bSelectPos
+    and #$00FF
+    clc
+    adc.w loword(_char_addresses),X
+    tax
+    lda.w $0000,X
+    sep #$20 ; 8b A
+; end
+    plb
+    rts
+
+_shell_push_unselect_pos:
+    jsr _get_selection_vaddr
+    rep #$30
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    jsr _get_selection_char
+    rep #$30
+    and #$00FF
+    ora #$0800
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    rts
+
+_shell_push_select_pos:
+    jsr _get_selection_vaddr
+    rep #$30
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
+    jsr _get_selection_char
+    rep #$30
+    and #$00FF
+    ora #$0400
+    ldy.b pwDrawBuf
+    sta.b (wLenDrawBuf),Y
+    inc.b wLenDrawBuf
+    inc.b wLenDrawBuf
     rts
 
 _shell_update_charset:
@@ -251,19 +354,28 @@ _shell_init:
     lda #0
     sta.l BG1HOFS
     ; initialize other
-    jsr _shell_update_charset
     pea 256
     jsl memalloc
     stx.b pwStrBuf
-    rep #$20
+    rep #$20 ; 16b A
     pla
     pea 256
     jsl memalloc
     stx.b pwDrawBuf
-    rep #$20
+    rep #$20 ; 16b A
     pla
-    ; set renderer
-    sep #$20
+    ; set variables
+    lda #0
+    sta.b wLenStrBuf
+    lda #0
+    sta.b wLenDrawBuf
+    sep #$20 ; 8b A
+    sta.b bState
+    sta.b bSelectPos
+    lda #SHFLAG_UPDATE_CHARS
+    sta.b bUpdateFlags
+    jsl _shell_push_select_pos
+    ; replace renderer
     lda #bankbyte(_shell_render)
     pha
     rep #$20
@@ -286,9 +398,101 @@ _shell_init:
 
 _shell_render:
     jsl KUpdatePrinter__
+    ; test flags
+    sep #$20
+    lda #SHFLAG_UPDATE_CHARS
+    trb.b bUpdateFlags
+    beq +
+        jsr _shell_update_charset
+    +:
+    ; apply draw buf
+    rep #$20
+    lda.b wLenDrawBuf
+    beq @skipdrawbuf
+        sta.l DMA0_SIZE
+        lda.b pwDrawBuf
+        sta.l DMA0_SRCL
+        stz.b wLenDrawBuf
+        sep #$20
+        phb
+        pla
+        sta.l DMA0_SRCH
+        lda #%0000100
+        sta.l DMA0_CTL
+        lda #lobyte(VMADDR)
+        sta.l DMA0_DEST
+        lda #$01
+        sta.l MDMAEN
+    @skipdrawbuf:
     rtl
 
 _shell_update:
+    sep #$20
+    .DisableInt__
+    jsr _shell_push_unselect_pos
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_RIGHT
+    beq +
+        sep #$20
+        lda.b bSelectPos
+        inc A
+        cmp #40
+        bcc ++
+            sec
+            sbc #40
+        ++:
+        sta.b bSelectPos
+    +:
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_LEFT
+    beq +
+        sep #$20
+        lda.b bSelectPos
+        dec A
+        bpl ++
+            clc
+            adc #40
+        ++:
+        sta.b bSelectPos
+    +:
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_DOWN
+    beq +
+        sep #$20
+        lda.b bSelectPos
+        clc
+        adc #10
+        cmp #40
+        bcc ++
+            sec
+            sbc #40
+        ++:
+        sta.b bSelectPos
+    +:
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_UP
+    beq +
+        sep #$20
+        lda.b bSelectPos
+        sec
+        sbc #10
+        bpl ++
+            clc
+            adc #40
+        ++:
+        sta.b bSelectPos
+    +:
+    jsr _shell_push_select_pos
+    sep #$30
+    ; wait for NMI and reschedule
+    lda #PROCESS_WAIT_NMI
+    jsl ksetcurrentprocessstate
+    .RestoreInt__
+    jsl kreschedule
     rts
 
 os_shell:
