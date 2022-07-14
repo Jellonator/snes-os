@@ -333,6 +333,11 @@ _shell_enter:
     .ChangeDataBank $7E
     jsl KPrintNextRow__
     plb
+    sep #$20
+    rep #$10
+    lda #0
+    ldy.b pwStrBuf
+    sta.b (wLenStrBuf),Y
     rts
 
 _shell_backspace:
@@ -407,11 +412,6 @@ _shell_init:
     sta.l BG12NBA
     lda #%00001011
     sta.l SCRNDESTM
-    ; set scroll
-    lda #-DEADZONE_LEFT*8
-    sta.l BG1HOFS
-    lda #0
-    sta.l BG1HOFS
     ; initialize other
     pea 256
     jsl memalloc
@@ -547,15 +547,22 @@ _shell_update:
         sta.b bSelectPos
     +:
     jsr _shell_push_select_pos
-    ; enter char
+    ; put char
     rep #$20
     lda.l kJoy1Press
     bit #JOY_A
     beq +
         jsr _shell_pushchar
     +:
-    sep #$30
+    ; enter string
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_START
+    beq +
+        jsr _shell_enter
+    +:
     ; wait for NMI and reschedule
+    sep #$30
     lda #PROCESS_WAIT_NMI
     jsl ksetcurrentprocessstate
     .RestoreInt__
