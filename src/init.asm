@@ -93,7 +93,7 @@ KernelResetRegisters__:
 
 .SNESNATIVEVECTOR
     COP EmptyHandler
-    BRK EmptyHandler
+    BRK KernelBrk__
     ABORT EmptyHandler
     NMI KernelVBlank__
     IRQ KernelIRQ__

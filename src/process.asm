@@ -9,6 +9,8 @@
 ;   nargs      [dw] $09
 ;   stack size [dw] $07
 ;   function   [dl] $04
+; Returns:
+;   PID: X [db]
 kcreateprocess:
     sep #$30 ; 8b AXY
     .DisableInt__ ; [+1; 1]
@@ -23,17 +25,17 @@ kcreateprocess:
     .ListAddX kListActive
     ; set values
     lda #PROCESS_SUSPEND
-    sta loword(kProcessStatusTable),X
-    stz loword(kProcessFlagTable),X
+    sta.w loword(kProcessStatusTable),X
+    stz.w loword(kProcessFlagTable),X
     ; for now, just allocate DP as PID*4
     ; TODO: 'correct' stack allocation stretegy
     phx ; push PID [+1; 3]
     lda #4
-    sta loword(kProcessDirectPageCountTable),X
+    sta.w loword(kProcessDirectPageCountTable),X
     txa
     asl
     asl
-    sta loword(kProcessDirectPageIndexTable),X
+    sta.w loword(kProcessDirectPageIndexTable),X
     rep #$30 ; 16b AXY
     and #$00FF
     ; DP index -> DP
@@ -62,7 +64,7 @@ kcreateprocess:
     asl
     tax
     pla
-    sta loword(kProcessSPBackupTable),X ; store SP
+    sta.w loword(kProcessSPBackupTable),X ; store SP
     tax ; X = top of stack
     lda 3+$04,s
     sta.w 11,X ; program counter
@@ -107,13 +109,9 @@ kresumeprocess:
 
 ; reschedule current process
 kreschedule:
-    rep #$20
-    pla ; increment return address
-    inc A
-    pha
-    php
-    sei
-    jml KernelIRQ__
+    brk
+    nop
+    rtl
 
 ; Set process X's state to A
 ; A and X should be 8b
@@ -122,8 +120,9 @@ ksetprocessstate:
     rtl
 
 ; Set current process's state to A
-; A and X should be 8b
+; A should be 8b
 ksetcurrentprocessstate:
+    sep #$30
     pha
     lda.l kCurrentPID
     tax
@@ -137,17 +136,16 @@ kkill:
     sep #$20 ; 8b A
     phb
     .ChangeDataBank $7E
-
     .DisableInt__
     ; set status to PROCESS_NULL
-    stz loword(kProcessStatusTable),X
+    stz.w loword(kProcessStatusTable),X
     ; remove process from active list
     .ListRemoveX kListActive
     ; add to null list
     .ListAddX kListNull
     ; if current process is renderer, then return renderer to OS
     sep #$20 ; 8b A
-    cpx loword(kRendererProcess)
+    cpx.w loword(kRendererProcess)
     bne @skipremoverenderer
         phx
         php
@@ -161,35 +159,35 @@ kkill:
     .ChangeDataBank $7F
     ldx #$0000
     @memloop:
-        lda memblock_t.mPID,X
+        sep #$20 ; 8b A
+        lda.w memblock_t.mPID,X
         cmp $01,s
         bne +
-            phx
-            php
-            jsl memfree ; free memory block
-            plp
-            plx
+            jsl kmemfreeblock
         +:
-        ldy memblock_t.mnext,X
+        ldy.w memblock_t.mnext,X
         tyx
+        cpx #0
         bne @memloop
     .ChangeDataBank $7E
     sep #$10 ; 8b XY
     plx ; pull ID
-    ; TODO: memory management; return resources to kernel
-    cpx loword(kCurrentPID)
-    bne +
-        ; re-enable interrupts in the future
-        pla
-        sta kNMITIMEN
-        ; make init the active process
-        lda #1
-        sta loword(kCurrentPID)
-        ; if Active process, reschedule without storing context
-        jml KernelIRQ2__@entrypoint
-    +:
     .RestoreInt__
     plb
+    rtl
+
+exit:
+    sep #$30
+    lda.l kCurrentPID
+    tax
+    ; .DisableInt__
+    jsl kkill
+    ; sep #$20
+    ; pla
+    ; sta.l kNMITIMEN
+    ; sei
+    ; jml KernelIRQ2__@entrypoint
+    jsl kreschedule
     rtl
 
 .ENDS
