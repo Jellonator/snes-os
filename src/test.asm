@@ -468,11 +468,6 @@ KTestProgram__:
     .CheckAEq 0
     .EndGroup
     jsl exit
-    ; rep #$10
-    ; ldy #loword(_errtxt)
-    ; jsl kputstring
-    -:
-    jmp -
 
 _errtxt: .db "ERROR\0"
 

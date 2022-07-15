@@ -162,7 +162,7 @@ KernelInitialize2__:
     lda #%00001111
     sta.l INIDISP
 ; spawn test process
-    .CreateReadyProcess KTestProgram__, 64, 0
+    ; .CreateReadyProcess KTestProgram__, 64, 0
     .CreateReadyProcess os_shell, 64, 0
 ; Finally, just become an infinite loop as process 1
     jmp KernelLoop__

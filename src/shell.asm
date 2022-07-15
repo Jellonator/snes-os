@@ -67,13 +67,10 @@ ShellCommandList:
     .DefCommand _sh_echo
     .DefCommand _sh_help
     .DefCommand _sh_kill
-    .DefCommand _sh_ps
     .DefCommand _sh_meminfo
+    .DefCommand _sh_ps
+    .DefCommand _sh_test
     .dsl 2, $000000
-    ; .DSTRUCT INSTANCEOF command_t VALUES
-    ;     plLabel: .dl 0
-    ;     plName: .dl 0
-    ; .ENDST
 
 ; tile data addresses; granularity is (X % $0400) words
 .DEFINE BG1_SHELLTEXT_TILE_BASE_ADDR $0400
@@ -424,9 +421,9 @@ _shell_run_command:
     rep #$30
     stx.b FoundCommandIndex
     ; push args
-    lda.b NStrArgs
-    pha
     lda.b PtrBuf
+    pha
+    lda.b NStrArgs
     pha
     pea 4
     pea 128
@@ -471,6 +468,10 @@ _shell_parse_command:
     rep #$30
     stx.b StrBuf
     ; allocate pointer buffer
+    pla
+    inc A
+    and #$FFFD
+    pha
     jsl memalloc
     rep #$30
     stx.b PtrBuf
@@ -530,7 +531,6 @@ _shell_parse_command:
     rts
     @insert:
         ; get new string buffer
-        inc.b StrBuf
         inc.b StrBuf
         stz.b StrBufLen
         ; add new string buffer to pointer buffer
@@ -729,8 +729,6 @@ _shell_init:
     lda #%00001111
     sta.l INIDISP
     .RestoreInt__
-    jsl kreschedule
-    jsl KPrintMemoryDump__
     rts
 
 _shell_render:
@@ -885,12 +883,47 @@ _sh_clear:
 
 _sh_echo_name: .db "echo\0"
 _sh_echo:
+    rep #$30 ; 16b AXY
+    ; $01,s: int argc
+    ; $03,s: char **argv
+    lda $03,s
+    inc A
+    inc A
+    tax
+    lda $01,s
+    beq @end
+    dec A
+    beq @end
+@loop:
+    ldy.w $0000,X
+    pha
+    phx
+    php
+    jsl kputstring
+    sep #$20
+    lda #' '
+    jsl kputc
+    plp
+    plx
+    pla
+    inx
+    inx
+    dec A
+    bne @loop
+@end:
+    sep #$20
+    lda #'\n'
+    jsl kputc
     jsl exit
 
 _sh_meminfo_name: .db "meminfo\0"
 _sh_meminfo:
     jsl KPrintMemoryDump__
     jsl exit
+
+_sh_test_name: .db "test\0"
+_sh_test:
+    jml KTestProgram__
 
 ; _sh_uptime_name: .db "uptime\0"
 ; _sh_uptime:
