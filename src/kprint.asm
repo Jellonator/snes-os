@@ -33,17 +33,17 @@ KPrintPalette__:
 KPrintPrevRow__:
     ; update vmem ptr
     rep #$20
-    lda loword(kTermPrintVMEMPtr)
+    lda.w loword(kTermPrintVMEMPtr)
     and #$FFE0
     sec
     sbc #$20
     and #$03FF
-    sta loword(kTermPrintVMEMPtr)
+    sta.w loword(kTermPrintVMEMPtr)
     ; update offset
-    lda loword(kTermOffY)
+    lda.w loword(kTermOffY)
     sec
     sbc #8
-    sta loword(kTermOffY)
+    sta.w loword(kTermOffY)
     sep #$20 ; 8b A
     sta.l BG4VOFS
     xba
@@ -53,12 +53,12 @@ KPrintPrevRow__:
 KPrintNextRow__:
     ; update vmem ptr
     rep #$20
-    lda loword(kTermPrintVMEMPtr)
+    lda.w loword(kTermPrintVMEMPtr)
     and #$FFE0
     clc
     adc #$20
     and #$03FF
-    sta loword(kTermPrintVMEMPtr)
+    sta.w loword(kTermPrintVMEMPtr)
     ; clear incoming line
     clc
     adc #$20 * 2
@@ -71,13 +71,13 @@ KPrintNextRow__:
     rep #$20 ; 16b A
     pla
     pla
-    lda loword(kTermPrintVMEMPtr)
+    lda.w loword(kTermPrintVMEMPtr)
     sta.l VMADDR
     ; update offset
-    lda loword(kTermOffY)
+    lda.w loword(kTermOffY)
     clc
     adc #8
-    sta loword(kTermOffY)
+    sta.w loword(kTermOffY)
     sep #$20 ; 8b A
     sta.l BG4VOFS
     xba
@@ -86,13 +86,13 @@ KPrintNextRow__:
 
 KInitPrinter__:
     rep #$30 ; 16b AXY
-    stz loword(kTermBufferCount)
+    stz.w loword(kTermBufferCount)
     lda #0
-    sta loword(kTermOffY)
+    sta.w loword(kTermOffY)
     lda #ROW_START*32
-    sta loword(kTermPrintVMEMPtr)
+    sta.w loword(kTermPrintVMEMPtr)
     sep #$20 ; 8b A
-    stz loword(kTermBufferLoop)
+    stz.w loword(kTermBufferLoop)
     ; f-blank
     lda #%10001111
     sta.l INIDISP
@@ -160,22 +160,22 @@ KUpdatePrinter__:
     lda #%10000000
     sta.l VMAIN
     rep #$30 ; 16b AXY
-    lda loword(kTermPrintVMEMPtr)
+    lda.w loword(kTermPrintVMEMPtr)
     sta.l VMADDR
 ; print
     sep #$20 ; 8b A
-    lda loword(kTermBufferLoop)
+    lda.w loword(kTermBufferLoop)
     bne +
     ; no buffer loop
     ldx #0
-    cpx loword(kTermBufferCount)
+    cpx.w loword(kTermBufferCount)
     beq @endloop
     rep #$20 ; 16b A
     bra @loop
     +:
     ; perform buffer loop
-    ldx loword(kTermBufferCount)
-    stz loword(kTermBufferLoop)
+    ldx.w loword(kTermBufferCount)
+    stz.w loword(kTermBufferLoop)
     rep #$20 ; 16b A
 @loop:
     cpx #KTERM_MAX_BUFFER_SIZE
@@ -192,7 +192,7 @@ KUpdatePrinter__:
     bra @continue
 @putchar:
     sta.l VMDATA
-    lda loword(kTermPrintVMEMPtr)
+    lda.w loword(kTermPrintVMEMPtr)
     and #$001F
     cmp #MAX_TERM_WIDTH-1
     bne +
@@ -200,15 +200,15 @@ KUpdatePrinter__:
     rep #$30 ; 16b AXY
     jmp @continue
     +:
-    inc loword(kTermPrintVMEMPtr)
+    inc.w loword(kTermPrintVMEMPtr)
 @continue:
     inx
-    cpx loword(kTermBufferCount)
+    cpx.w loword(kTermBufferCount)
     bne @loop
 @endloop:
 ; end loop
     ldx #0
-    stx loword(kTermBufferCount)
+    stx.w loword(kTermBufferCount)
 ; end
     plb
     rtl
@@ -222,18 +222,18 @@ kputc:
     .DisableInt__
 ; begin
     rep #$10 ; 16b XY
-    ldx loword(kTermBufferCount)
+    ldx.w loword(kTermBufferCount)
     cpx #KTERM_MAX_BUFFER_SIZE
     bne +
     ; buffer loop
         ldx #0
         lda #1
-        sta loword(kTermBufferLoop)
+        sta.w loword(kTermBufferLoop)
     +:
     lda $02,s
-    sta loword(kTermBuffer),X
+    sta.w loword(kTermBuffer),X
     inx
-    stx loword(kTermBufferCount)
+    stx.w loword(kTermBufferCount)
 ; end
     .RestoreInt__
     pla

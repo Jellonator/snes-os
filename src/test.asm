@@ -190,6 +190,57 @@ KTestProgram__:
     .ACCU 8
     .CheckAEq 0
     .EndGroup
+    ; TEST strcmpl
+    .StartGroup "STRCMPL"
+    .PEAL _teststr1
+    .PEAL _teststr2
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq -1
+    .POPN 6
+    .PEAL _teststr2
+    .PEAL _teststr1
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq 1
+    .POPN 6
+    .PEAL _teststr2
+    .PEAL _teststr22
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq -1
+    .POPN 6
+    .PEAL _teststr22
+    .PEAL _teststr2
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq 1
+    .POPN 6
+    .PEAL _teststrempty
+    .PEAL _teststr2
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq -1
+    .POPN 6
+    .PEAL _teststr2
+    .PEAL _teststrempty
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq 1
+    .POPN 6
+    .PEAL _teststrempty
+    .PEAL _teststrempty
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq 0
+    .POPN 6
+    .PEAL _teststr3
+    .PEAL _teststr3
+    jsl strcmpl
+    .ACCU 8
+    .CheckAEq 0
+    .POPN 6
+    .EndGroup
     ; TEST strchr
     .StartGroup "STRCHR"
     rep #$10 ; 16b XY
@@ -416,12 +467,60 @@ KTestProgram__:
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-    ; sep #$30
-    ; lda.l kCurrentPID
-    ; tax
-    ; jsl kkill
+    jsl exit
+    ; rep #$10
+    ; ldy #loword(_errtxt)
+    ; jsl kputstring
     -:
-    ; jsl kreschedule
-    bra -
+    jmp -
+
+_errtxt: .db "ERROR\0"
+
+.ENDS
+
+.BANK $02 SLOT "ROM"
+.SECTION "Test2" FREE
+
+_alt_teststr1:
+    .db "asdfbar\0"
+
+_alt_teststr2:
+    .db "asdffoo\0"
+
+_alt_teststr22:
+    .db "asdffooo\0"
+
+_alt_teststr3:
+    .db "qwertyuiop\0"
+
+_alt_teststr4:
+    .db "baaabaab\0"
+
+_alt_testnum_0:
+    .db "0\0"
+
+_alt_testnum_420:
+    .db "420\0"
+
+_alt_testnum_32767:
+    .db "32767\0"
+
+_alt_testnum_65535:
+    .db "65535\0"
+
+_alt_testnum_N420:
+    .db "-420\0"
+
+_alt_testnum_N0:
+    .db "-0\0"
+
+_alt_testnum_N32767:
+    .db "-32767\0"
+
+_alt_testnum_N32768:
+    .db "-32768\0"
+
+_alt_teststrempty:
+    .db "\0"
 
 .ENDS

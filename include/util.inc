@@ -350,3 +350,37 @@
     jml.w [addr]
     @@@@@\.\@:
 .ENDM
+
+.MACRO .PEAB ARGS v
+    sep #$20
+    lda #v
+    pha
+.ENDM
+
+.MACRO .PEAL ARGS v
+    sep #$20
+    lda #bankbyte(v)
+    pha
+    pea loword(v)
+.ENDM
+
+.MACRO .POPN ARGS NUM
+    .IF NUM == 0
+    .ELIF NUM == 1
+        sep #$20
+        pla
+    .ELIF NUM == 2
+        rep #$20
+        pla
+    .ELIF NUM == 4
+        rep #$20
+        pla
+        pla
+    .ELSE
+        rep #$20
+        tsc
+        clc
+        adc #NUM
+        tcs
+    .ENDIF
+.ENDM

@@ -18,6 +18,7 @@ KernelVBlank__:
     bit #$80
     bne +
         ; restore
+        ; sta.l NMITIMEN
         rep #$20
         pla
         rti
@@ -41,7 +42,7 @@ KRenderInit__:
     sta.l kRendererAddr
     lda #bankbyte(KUpdatePrinter__) | $0100
     sta.l kRendererAddr+2
-    lda #0
+    lda #$0000
     sta.l kRendererDP
     sep #$20
     lda #$7E
@@ -89,17 +90,18 @@ KernelVBlank2__:
     bit #$30
     bne +
         ; restore process
-        lda loword(kCurrentPID)
+        rep #$30
+        lda.w loword(kCurrentPID)
+        and #$00FF
         asl
         tay
-        rep #$10 ; 16b XY
-        ldx loword(kProcessSPBackupTable),Y
+        ldx.w loword(kProcessSPBackupTable),Y
         txs
         pld
         plb
         ply
         plx
-        lda kNMITIMEN ; re-enable interrupts
+        lda.l kNMITIMEN ; re-enable interrupts
         sta.l NMITIMEN
         rep #$20 ; 16b A
         pla ; finalize context switch

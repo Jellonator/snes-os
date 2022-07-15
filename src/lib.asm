@@ -57,6 +57,42 @@ strcmp:
     +:
     rtl
 
+; String comparison long
+; Compare two strings in separate banks
+; Push order:
+;   str1 [dl], $07
+;   str2 [dl], $04
+strcmpl:
+    rep #$30
+    tsc ; A = SP
+    phd ; Push DP
+    tcd ; DP = A
+    sep #$20
+    ldy #0 ; Y = 0
+    bra @loop
+@continue:
+    iny
+@loop:
+    lda.b [$07],Y
+    beq @xnull
+    cmp.b [$04],Y
+    beq @continue
+    bcc +
+        pld
+        lda.b #$01
+        rtl
+    +:
+        pld
+        lda.b #$FF
+        rtl
+@xnull:
+    lda.b [$04],Y
+    beq +
+    lda.b #$FF
+    +:
+    pld
+    rtl
+
 ; find first occurence of character A in X
 ; If character is found, X will be pointer to character
 ; otherwise, X will be NULL

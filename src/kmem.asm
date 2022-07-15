@@ -135,8 +135,8 @@ memalloc:
     .RestoreInt__ ; -1 (0)
     rtl
 
-; free memory at X
-memfree:
+; Free memory block X
+kmemfreeblock:
 ; disable interrupts
     sep #$20 ; 8b A
     .DisableInt__ ; +1 (1)
@@ -144,11 +144,6 @@ memfree:
     rep #$30 ; 16b AXY
     phb ; +1 (2)
     .ChangeDataBank $7F
-; begin
-    txa
-    sec
-    sbc #MEMBLOCK_SIZE
-    tax
 ; mark as free
     stz.w memblock_t.mPID,X
 ; merge with prev if it is free (and not null)
@@ -187,6 +182,26 @@ memfree:
     ; restore interrupts
     sep #$20 ; 8b A
     .RestoreInt__ ; -1 (0)
+    rtl
+
+; free memory at X
+memfree:
+    rep #$30 ; 16b AXY
+    txa
+    sec
+    sbc #MEMBLOCK_SIZE
+    tax
+    jmp kmemfreeblock
+
+; Memory change owner
+; Change owner of memory in X to PID A
+; A must be 8b and X must be 16b
+memchown:
+    .INDEX 16
+    .ACCU 8
+    dex
+    sta.l $7F0000,X
+    inx
     rtl
 
 ; debug memory print

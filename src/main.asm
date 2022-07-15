@@ -23,11 +23,12 @@ KernelInitialize__:
     ; Initialize registers
     jsl KernelResetRegisters__
     lda #$01
-    sta MEMSEL ; use FASTROM
+    sta.l MEMSEL ; use FASTROM
     jml KernelInitialize2__
 
 ; Called by SNES' IRQ timer.
 ; In charge of process switching.
+KernelBrk__:
 KernelIRQ__:
     sei
     rep #$20 ; 16b A
@@ -52,28 +53,33 @@ KernelIRQ2__:
     sep #$30 ; 8b AXY
     .ChangeDataBank $7E
 ; find next READY process
-    ldx loword(kCurrentPID)
+    ldx.w loword(kCurrentPID)
+    ; if current PID is null
+    lda.w loword(kProcessStatusTable),X
+    bne +
+        ldx #1
+    +:
 @find_ready:
-    lda loword(kProcessNextIdTable),X
+    lda.w loword(kProcessNextIdTable),X
     tax
-    lda loword(kProcessStatusTable),X
+    lda.w loword(kProcessStatusTable),X
     cmp #PROCESS_READY
     bne @find_ready
 ; set found process to active
-    stx loword(kCurrentPID)
+    stx.w loword(kCurrentPID)
 ; Switch to process
     txa
     asl
     tay
     rep #$10 ; 16b XY
-    ldx loword(kProcessSPBackupTable),Y
+    ldx.w loword(kProcessSPBackupTable),Y
     txs ; begin context switch
     pld
     plb
     ; rep #$10 ; 16b XY
     ply
     plx
-    lda kNMITIMEN ; re-enable interrupts
+    lda.l kNMITIMEN ; re-enable interrupts
     sta.l NMITIMEN
     rep #$20 ; 16b A
     pla ; finalize context switch
@@ -97,45 +103,49 @@ KernelInitialize2__:
     ldx #1
 @clear_process_loop:
     lda #PROCESS_NULL
-    sta loword(kProcessStatusTable),X
-    stz loword(kProcessMemPageIndexTable),X
-    stz loword(kProcessMemPageCountTable),X
-    stz loword(kProcessDirectPageIndexTable),X
-    stz loword(kProcessDirectPageCountTable),X
+    sta.w loword(kProcessStatusTable),X
+    stz.w loword(kProcessMemPageIndexTable),X
+    stz.w loword(kProcessMemPageCountTable),X
+    stz.w loword(kProcessDirectPageIndexTable),X
+    stz.w loword(kProcessDirectPageCountTable),X
     txa
     inc A
-    sta loword(kProcessNextIdTable),X
+    sta.w loword(kProcessNextIdTable),X
     dec A
     dec A
-    sta loword(kProcessPrevIdTable),X
+    sta.w loword(kProcessPrevIdTable),X
     inx
     cpx #MAX_CONCURRENT_PROCESSES_COUNT
     bne @clear_process_loop
 ; setup null process list (first and last PID point to each other)
     lda #2
-    sta loword(kProcessNextIdTable) + MAX_CONCURRENT_PROCESSES_COUNT - 1
-    sta loword(kListNull)
+    sta.w loword(kProcessNextIdTable) + MAX_CONCURRENT_PROCESSES_COUNT - 1
+    sta.w loword(kListNull)
     lda #MAX_CONCURRENT_PROCESSES_COUNT - 1
-    sta loword(kProcessPrevIdTable) + 2
+    sta.w loword(kProcessPrevIdTable) + 2
 ; Setup process 1
     lda #1
-    sta loword(kCurrentPID)
-    sta loword(kListActive)
+    sta.w loword(kCurrentPID)
+    sta.w loword(kListActive)
     lda #PROCESS_READY
-    sta loword(kProcessStatusTable + 1)
-    stz loword(kProcessMemPageIndexTable + 1)
+    sta.w loword(kProcessStatusTable + 1)
+    stz.w loword(kProcessMemPageIndexTable + 1)
     lda #KERNEL_PAGES_USED
-    sta loword(kProcessMemPageCountTable + 1)
-    stz loword(kProcessDirectPageIndexTable + 1)
+    sta.w loword(kProcessMemPageCountTable + 1)
+    stz.w loword(kProcessDirectPageIndexTable + 1)
     lda #1
-    sta loword(kProcessDirectPageCountTable + 1)
-    sta loword(kProcessNextIdTable + 1)
-    sta loword(kProcessPrevIdTable + 1)
+    sta.w loword(kProcessDirectPageCountTable + 1)
+    sta.w loword(kProcessNextIdTable + 1)
+    sta.w loword(kProcessPrevIdTable + 1)
 ; render initialization
     jsl KRenderInit__
     jsl KInitPrinter__
 ; mem init
     jsl KMemInit__
+    rep #$20
+    stz.w loword(kJoy1Held)
+    stz.w loword(kJoy1Press)
+    stz.w loword(kJoy1Raw)
 ; re-enable IRQ/NMI
     rep #$20
     lda #128 ; choose close to center of screen to
@@ -146,7 +156,7 @@ KernelInitialize2__:
     sep #$20
     lda #%10110001
     sta.l NMITIMEN
-    sta loword(kNMITIMEN)
+    sta.w loword(kNMITIMEN)
     cli
 ; re-enable rendering
     lda #%00001111

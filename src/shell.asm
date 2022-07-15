@@ -52,6 +52,29 @@ ShellBackgroundData__:
 .BANK $01 SLOT "ROM"
 .SECTION "Shell" FREE
 
+.DEFINE NUM_COMMANDS 0
+
+.MACRO .DefCommand ARGS cmd
+    .DSTRUCT INSTANCEOF command_t VALUES
+        plLabel: .dl \1
+        plName: .dl \1_name
+    .ENDST
+    .REDEFINE NUM_COMMANDS (NUM_COMMANDS + 1)
+.ENDM
+
+ShellCommandList:
+    .DefCommand _sh_clear
+    .DefCommand _sh_echo
+    .DefCommand _sh_help
+    .DefCommand _sh_kill
+    .DefCommand _sh_ps
+    .DefCommand _sh_meminfo
+    .dsl 2, $000000
+    ; .DSTRUCT INSTANCEOF command_t VALUES
+    ;     plLabel: .dl 0
+    ;     plName: .dl 0
+    ; .ENDST
+
 ; tile data addresses; granularity is (X % $0400) words
 .DEFINE BG1_SHELLTEXT_TILE_BASE_ADDR $0400
 .DEFINE BG2_SHELLBACK_TILE_BASE_ADDR $0800
@@ -340,11 +363,104 @@ _shell_push_char:
     inc.b wLenStrBuf
     rts
 
-_shell_parse_command:
+_shell_run_command:
     .DEFINE NStrArgs $06
     .DEFINE StrBufLen $08
     .DEFINE StrBuf $0A
     .DEFINE PtrBuf $0C
+    .DEFINE FoundCommandIndex $0E
+    ; push pointer to command name string
+    phb
+    rep #$20
+    lda.b (PtrBuf)
+    pha
+    rep #$10 ; 16b XY
+    ldx #0
+    ; push command name
+@loop:
+    sep #$20
+    lda.l ShellCommandList+command_t.plName+2,X
+    pha
+    rep #$20
+    lda.l ShellCommandList+command_t.plName,X
+    pha
+    ; check command match
+    jsl strcmpl
+    .ACCU 8
+    cmp #0
+    beq @runcommand
+    ; command does not match, get next
+    .POPN 3
+    rep #$20
+    txa
+    clc
+    adc #_sizeof_command_t
+    tax
+    lda.l ShellCommandList,X
+    ora.l ShellCommandList+2,X
+    ora.l ShellCommandList+4,X
+    bne @loop
+    ; bra @nocommand
+@nocommand:
+    ; no command found
+    .POPN 2
+    rep #$30
+    phk
+    plb
+    ldy #@errtxt
+    jsl kputstring
+    plb
+    ; free memory
+    ldx.b StrBuf
+    jsl memfree
+    rep #$10
+    ldx.b PtrBuf
+    jsl memfree
+    rts
+@runcommand:
+    ; found command, run it
+    .POPN 5
+    plb
+    rep #$30
+    stx.b FoundCommandIndex
+    ; push args
+    lda.b NStrArgs
+    pha
+    lda.b PtrBuf
+    pha
+    pea 4
+    pea 128
+    rep #$10
+    ldx.b FoundCommandIndex
+    sep #$20
+    lda.l ShellCommandList+2,X
+    pha
+    rep #$20
+    lda.l ShellCommandList,X
+    pha
+    ; start process
+    jsl kcreateprocess
+    .INDEX 8
+    phx
+    ; change owner of memory
+    sep #$30 ; 8A, 8XY
+    txa
+    rep #$10 ; 8A, 16XY
+    ldx.b PtrBuf
+    jsl memchown
+    ldx.b StrBuf
+    jsl memchown
+    ; start process
+    sep #$10 ; 8A, 8XY
+    plx
+    jsl kresumeprocess
+    ; end
+    .POPN 11
+    rts
+@errtxt: .db "No such command.\n\0"
+@testtxt: .db "Found command!\n\0"
+
+_shell_parse_command:
 ; parse line
     ; allocate string buffer
     rep #$20
@@ -363,16 +479,21 @@ _shell_parse_command:
     pha
     lda.b StrBuf
     pha
+    sta.b (PtrBuf)
+    inc.b PtrBuf
+    inc.b PtrBuf
     stz.b StrBufLen
     stz.b NStrArgs
     ; parse string
+    ldy #0
     bra @enterspaceloop
     @insertstr:
         jsr @insert
     @spaceloop:
-        inc.b pwStrBuf
+        ; inc.b pwStrBuf
+        iny
     @enterspaceloop:
-        lda.b (pwStrBuf)
+        lda.b (pwStrBuf),Y
         and #$00FF
         beq @endloop
         cmp #' '
@@ -382,8 +503,9 @@ _shell_parse_command:
         inc.b StrBuf
         inc.b StrBufLen
     @charloop:
-        inc.b pwStrBuf
-        lda.b (pwStrBuf)
+        ; inc.b pwStrBuf
+        iny
+        lda.b (pwStrBuf),Y
         and #$00FF
         beq @endloop
         cmp #' '
@@ -399,26 +521,25 @@ _shell_parse_command:
     beq +
         jsr @insert
     +:
+    rep #$30
     plx
-    plx ; now contains `char **argv`
-    lda NStrArgs ; now contains `int argc`
+    stx.b StrBuf
+    plx
+    stx.b PtrBuf
+    jsr _shell_run_command
     rts
     @insert:
-        ply
-        ; *ptrbuf = strbuf;
-        pla
-        sta.b (PtrBuf)
         ; get new string buffer
         inc.b StrBuf
-        lda StrBuf
-        pha
+        inc.b StrBuf
         stz.b StrBufLen
-        ; ++ptrbuf;
+        ; add new string buffer to pointer buffer
+        lda.b StrBuf
+        sta.b (PtrBuf)
         inc.b PtrBuf
         inc.b PtrBuf
+        ; ++nargs;
         inc.b NStrArgs
-        ; end
-        phy
         rts
 .UNDEFINE StrBuf
 .UNDEFINE PtrBuf
@@ -645,6 +766,7 @@ _shell_render:
 _shell_update:
     sep #$20
     .DisableInt__
+    ; actual update code
     jsr _shell_push_unselect_pos
     rep #$20
     lda.l kJoy1Press
@@ -731,11 +853,11 @@ _shell_update:
     beq +
         jsr _shell_enter
     +:
+    sep #$20
+    .RestoreInt__
     ; wait for NMI and reschedule
-    sep #$30
     lda #PROCESS_WAIT_NMI
     jsl ksetcurrentprocessstate
-    .RestoreInt__
     jsl kreschedule
     rts
 
@@ -745,22 +867,33 @@ os_shell:
         jsr _shell_update
         jmp @loop
 
+_sh_help_name: .db "help\0"
 _sh_help:
-    rtl
+    jsl exit
 
+_sh_ps_name: .db "ps\0"
 _sh_ps:
-    rtl
+    jsl exit
 
+_sh_kill_name: .db "kill\0"
 _sh_kill:
-    rtl
+    jsl exit
 
+_sh_clear_name: .db "clear\0"
 _sh_clear:
-    rtl
+    jsl exit
 
+_sh_echo_name: .db "echo\0"
 _sh_echo:
-    rtl
+    jsl exit
 
-_sh_uptime:
-    rtl
+_sh_meminfo_name: .db "meminfo\0"
+_sh_meminfo:
+    jsl KPrintMemoryDump__
+    jsl exit
+
+; _sh_uptime_name: .db "uptime\0"
+; _sh_uptime:
+;     rtl
 
 .ENDS
