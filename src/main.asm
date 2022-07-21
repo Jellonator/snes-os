@@ -85,6 +85,7 @@ KernelIRQ2__:
     pla ; finalize context switch
     rti
 
+_init_name: .db "init\0"
 KernelInitialize2__:
     ; Disable rendering temporarily
     sep #$20 ; 8b A
@@ -104,8 +105,6 @@ KernelInitialize2__:
 @clear_process_loop:
     lda #PROCESS_NULL
     sta.w loword(kProcessStatusTable),X
-    stz.w loword(kProcessMemPageIndexTable),X
-    stz.w loword(kProcessMemPageCountTable),X
     stz.w loword(kProcessDirectPageIndexTable),X
     stz.w loword(kProcessDirectPageCountTable),X
     txa
@@ -129,14 +128,17 @@ KernelInitialize2__:
     sta.w loword(kListActive)
     lda #PROCESS_READY
     sta.w loword(kProcessStatusTable + 1)
-    stz.w loword(kProcessMemPageIndexTable + 1)
-    lda #KERNEL_PAGES_USED
-    sta.w loword(kProcessMemPageCountTable + 1)
     stz.w loword(kProcessDirectPageIndexTable + 1)
     lda #1
     sta.w loword(kProcessDirectPageCountTable + 1)
     sta.w loword(kProcessNextIdTable + 1)
     sta.w loword(kProcessPrevIdTable + 1)
+    lda #bankbyte(_init_name)
+    sta.w loword(kProcessNameBankTable + 1)
+    rep #$20
+    lda #loword(_init_name)
+    sta.w loword(kProcessNameTable + 2)
+    sep #$20
 ; render initialization
     jsl KRenderInit__
     jsl KInitPrinter__
@@ -163,7 +165,7 @@ KernelInitialize2__:
     sta.l INIDISP
 ; spawn test process
     ; .CreateReadyProcess KTestProgram__, 64, 0
-    .CreateReadyProcess os_shell, 64, 0
+    .CreateReadyProcess os_shell, 64, 0, os_shell@n
 ; Finally, just become an infinite loop as process 1
     jmp KernelLoop__
 KernelLoop__:

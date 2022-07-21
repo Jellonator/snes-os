@@ -368,4 +368,14 @@ writeiw:
     +:
     jmp writeuw
 
+; write char A to string X
+; Afterwards, X will point to end of string (*X == '\0')
+writec:
+    .INDEX 16
+    .ACCU 8
+    sta.w $0000,X
+    inx
+    stz.w $0000,X
+    rtl
+
 .ENDS

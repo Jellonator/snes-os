@@ -5,9 +5,10 @@
 
 ; Create a new process.
 ; PUSH order:
-;   args       [ds] $0B...
-;   nargs      [dw] $09
-;   stack size [dw] $07
+;   args       [ds] $0E...
+;   nargs      [dw] $0C
+;   stack size [dw] $0A
+;   name       [dl] $07
 ;   function   [dl] $04
 ; Returns:
 ;   PID: X [db]
@@ -27,6 +28,17 @@ kcreateprocess:
     lda #PROCESS_SUSPEND
     sta.w loword(kProcessStatusTable),X
     stz.w loword(kProcessFlagTable),X
+    lda 2+$09,s
+    sta.w loword(kProcessNameBankTable),X
+    phx ; +1 [3]
+    txa
+    asl
+    tax
+    rep #$20
+    lda 3+$07,s
+    sta.w loword(kProcessNameTable),X
+    sep #$20
+    plx ; -1 [2]
     ; for now, just allocate DP as PID*4
     ; TODO: 'correct' stack allocation stretegy
     phx ; push PID [+1; 3]
@@ -57,7 +69,7 @@ kcreateprocess:
     clc
     adc #(32*4)-1 - 13 ; +{size of DP}-1 -{register store size}
     sec
-    sbc 3+$09,s ; subtract NARGS
+    sbc 3+$0C,s ; subtract NARGS
     ; set X to index into SP backup table
     pha
     txa
@@ -86,9 +98,9 @@ kcreateprocess:
     tay ; dest = newSP+{register store size}
     tsc
     clc
-    adc #$0B+3
+    adc #$0E+3
     tax ; source = localSP+$0B+3
-    lda 3+$09,s ; NARGS
+    lda 3+$0C,s ; NARGS
     beq +
     dec A
     mvn $00,$00 ; copy args from local stack to new stack
@@ -144,7 +156,7 @@ kkill:
     ; add to null list
     .ListAddX kListNull
     ; if current process is renderer, then return renderer to OS
-    sep #$20 ; 8b A
+    sep #$30 ; 8b AXY
     cpx.w loword(kRendererProcess)
     bne @skipremoverenderer
         phx
@@ -170,7 +182,7 @@ kkill:
         cpx #0
         bne @memloop
     .ChangeDataBank $7E
-    sep #$10 ; 8b XY
+    sep #$30 ; 8b AXY
     plx ; pull ID
     .RestoreInt__
     plb
@@ -180,14 +192,7 @@ exit:
     sep #$30
     lda.l kCurrentPID
     tax
-    ; .DisableInt__
     jsl kkill
-    ; sep #$20
-    ; pla
-    ; sta.l kNMITIMEN
-    ; sei
-    ; jml KernelIRQ2__@entrypoint
     jsl kreschedule
-    rtl
 
 .ENDS

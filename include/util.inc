@@ -326,10 +326,13 @@
 @@@@@\.\@end:
 .ENDM
 
-.MACRO .CreateReadyProcess ARGS proc, stack, args
+.MACRO .CreateReadyProcess ARGS proc, stack, args, n
     sep #$20
     pea args
     pea stack
+    lda #bankbyte(n)
+    pha
+    pea loword(n)
     lda #bankbyte(proc)
     pha
     pea loword(proc)
@@ -339,7 +342,7 @@
     pla
     pla
     pla
-    sep #$20 ; 8b A
+    pla
     pla
 .ENDM
 
