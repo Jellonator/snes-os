@@ -63,10 +63,10 @@ ShellBackgroundData__:
 .ENDM
 
 ShellCommandList:
-    .DefCommand _sh_clear
+    ; .DefCommand _sh_clear
     .DefCommand _sh_echo
     .DefCommand _sh_help
-    .DefCommand _sh_kill
+    ; .DefCommand _sh_kill
     .DefCommand _sh_meminfo
     .DefCommand _sh_ps
     .DefCommand _sh_test
@@ -875,8 +875,40 @@ os_shell:
         jmp @loop
     @n: .db "shell\0"
 
+_help_txt:
+    .db "Commands:\n  \0"
+_help_sep:
+    .db "\n  \0"
 _sh_help_name: .db "help\0"
 _sh_help:
+    .ChangeDataBank bankbyte(_help_txt)
+    rep #$30
+    ldy #loword(_help_txt)
+    jsl kputstring
+    rep #$30
+    stz.b $06
+@loop:
+    ldx.b $06
+    sep #$20
+    lda.l ShellCommandList+command_t.plName+2,X
+    pha
+    plb
+    rep #$20
+    lda.l ShellCommandList+command_t.plName,X
+    tay
+    jsl kputstring
+    .ChangeDataBank bankbyte(_help_sep)
+    rep #$20
+    ldy #loword(_help_sep)
+    jsl kputstring
+    rep #$30
+    lda.b $06
+    clc
+    adc #_sizeof_command_t
+    sta.b $06
+    cmp #_sizeof_command_t * NUM_COMMANDS
+    bcc @loop
+
     jsl exit
 
 _ps_state_tbl:
