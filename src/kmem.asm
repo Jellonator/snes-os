@@ -43,10 +43,11 @@ memalloc:
     phb ; +1 (2)
     .ChangeDataBank $7F ; 13
     lda.l DIVU_QUOTIENT
+    sta.b $00
     asl
     asl
     clc
-    adc.l DIVU_QUOTIENT
+    adc.b $00
     sta 2+$04,s
 ; begin
     lda.l kNextFreeMemoryBlock
@@ -145,32 +146,47 @@ kmemfreeblock:
     phb ; +1 (2)
     .ChangeDataBank $7F
 ; mark as free
+    sep #$20
     stz.w memblock_t.mPID,X
+    rep #$20
 ; merge with prev if it is free (and not null)
     ldy.w memblock_t.mprev,X
     cpy #$FFFF
     beq +
+    sep #$20
     lda.w memblock_t.mPID,Y
     bne +
         ; perform merge
         ; X = current
         ; Y = prev
+        rep #$20
         lda.w memblock_t.mnext,X
         sta.w memblock_t.mnext,Y
         tyx
+        ; tell next block to point to new location
+        tay
+        txa
+        sta.w memblock_t.mprev,Y
     +:
 ; merge with next if it is free
     ldy.w memblock_t.mnext,X
     beq +
+    sep #$20
     lda.w memblock_t.mPID,Y
     bne +
         ; perform merge
         ; X = current
         ; Y = next
+        rep #$20
         lda.w memblock_t.mnext,Y
         sta.w memblock_t.mnext,X
+        ; Y->next->prev = X
+        tay
+        txa
+        sta.w memblock_t.mprev,Y
     +:
 ; kNextFreeMemoryBlock = min(kNextFreeMemoryBlock, X)
+    rep #$20
     txa
     cmp.l kNextFreeMemoryBlock
     bcs +

@@ -408,6 +408,7 @@ _shell_run_command:
     jsl kputstring
     plb
     ; free memory
+    rep #$10
     ldx.b StrBuf
     jsl memfree
     rep #$10
@@ -429,6 +430,12 @@ _shell_run_command:
     pea 128
     rep #$10
     ldx.b FoundCommandIndex
+    ; push name
+    phb
+    rep #$20
+    lda.b StrBuf
+    pha
+    ; push command
     sep #$20
     lda.l ShellCommandList+2,X
     pha
@@ -452,7 +459,7 @@ _shell_run_command:
     plx
     jsl kresumeprocess
     ; end
-    .POPN 11
+    .POPN 14
     rts
 @errtxt: .db "No such command.\n\0"
 @testtxt: .db "Found command!\n\0"
@@ -467,11 +474,12 @@ _shell_parse_command:
     jsl memalloc
     rep #$30
     stx.b StrBuf
-    ; allocate pointer buffer
     pla
+    lda.b wLenStrBuf
     inc A
-    and #$FFFD
+    and #$FFFE
     pha
+    ; allocate pointer buffer
     jsl memalloc
     rep #$30
     stx.b PtrBuf
@@ -553,6 +561,12 @@ _shell_push_space:
     rts
 
 _shell_enter:
+; next row
+    phb
+    .ChangeDataBank $7E
+    jsl KPrintNextRow__
+    plb
+; parse command
     rep #$20
     lda.b wLenStrBuf
     beq @nocommand
@@ -562,15 +576,10 @@ _shell_enter:
     rep #$20
     stz.b wLenStrBuf
     stz.b wCharLinePos
-    phb
-    .ChangeDataBank $7E
-    jsl KPrintNextRow__
-    plb
     sep #$20
     rep #$10
     lda #0
-    ldy.b pwStrBuf
-    sta.b (wLenStrBuf),Y
+    sta.b (pwStrBuf)
     rts
 
 _shell_backspace:
@@ -864,14 +873,96 @@ os_shell:
     @loop:
         jsr _shell_update
         jmp @loop
+    @n: .db "shell\0"
 
 _sh_help_name: .db "help\0"
 _sh_help:
     jsl exit
 
+_ps_state_tbl:
+    .db '?'
+    .db 'R'
+    .db 'S'
+    .ds PROCESS_WAIT_NMI-PROCESS_SUSPEND-1, '?'
+    .db 'W'
+    .ds 255-PROCESS_WAIT_NMI-1, '?'
+
+_ps_txt:
+    .db "PI S NAME\n"
+    .db "-- - ----\n\0"
 _sh_ps_name: .db "ps\0"
 _sh_ps:
+; write header
+    phb
+    .ChangeDataBank bankbyte(_ps_txt)
+    rep #$30
+    ldy #_ps_txt
+    jsl kputstring
+    plb
+; allocate string
+    pea 255
+    jsl memalloc
+    rep #$30 ; 16b AXY
+    pla
+    cpx #0
+    bne +
+        jsl exit
+    +:
+    stx.b $08 ; $08 is mem
+; iterate processes
+    lda #1
+@loop:
+    sta.b $06 ; $06 is current pid
+    ldx.b $08
+    ; write PID
+    sep #$20 ; 8b A, 16b XY
+    jsl writeptrb
+    lda #' '
+    jsl writec
+    rep #$20
+    ; write string
+    ldy.b $08
+    jsl kputstring
+    ; write state
+    sep #$20
+    lda #0
+    xba
+    ldx.b $06
+    lda.l kProcessStatusTable,X
+    tax
+    lda.l _ps_state_tbl,X
+    jsl kputc
+    lda #' '
+    jsl kputc
+    rep #$20
+    ; write name
+    phb
+    ldx.b $06
+    sep #$20
+    lda.l kProcessNameBankTable,X
+    pha
+    plb
+    rep #$20
+    txa
+    asl
+    tax
+    lda.l kProcessNameTable,X
+    tay
+    jsl kputstring
+    plb
+    sep #$20
+    lda #'\n'
+    jsl kputc
+    rep #$20
+    ; next PID
+    ldx.b $06
+    lda.l kProcessNextIdTable,X
+    and #$00FF
+    cmp #1
+    bne @loop
+    - jsl kreschedule
     jsl exit
+    bra -
 
 _sh_kill_name: .db "kill\0"
 _sh_kill:
