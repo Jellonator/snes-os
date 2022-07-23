@@ -72,18 +72,36 @@ KernelVBlank2__:
     lda #%00001111
     sta.l INIDISP
     ; make waiting processes ready
-    ldx.w loword(kListActive)
-    beq @loopend
-    @loop:
-        lda.w loword(kProcessStatusTable),X
-        and #$7F
-        sta.w loword(kProcessStatusTable),X
-        lda.w loword(kProcessNextIdTable),X
-        tax
-        cmp.w loword(kListActive)
-        bne @loop
-    @loopend:
-    ; TODO: make better by implementing ready/wait list
+@loop:
+    ldx #KQID_NMILIST
+    jsl kdequeue
+    cpy #0
+    beq @endloop
+    lda #PROCESS_READY
+    sta.w loword(kProcTabStatus),Y
+    ldx #1
+    jsl kenqueue
+    bra @loop
+@endloop:
+; possibly more efficient method?
+; would need to incorporate status change
+;     ldx.w loword(kQueueTabNext) + KQID_NMILIST       ; X = next
+;     cpx #KQID_NMILIST
+;     beq @skiplist ; if nmilist->next == nmilist, skip
+;         lda.w loword(kQueueTabPrev) + KQID_NMILIST   ; A = prev
+;         sta.w $0001 ; $0001 = prev
+;         ldy.w loword(kQueueTabNext) + KQID_READYLIST ; Y = readylist.next
+;         sta.w loword(kQueueTabPrev),Y                ; qtPrev[readylist.next] = prev
+;         stx.w loword(kQueueTabNext) + KQID_READYLIST ; qtNext[readylist] = next
+;         lda #KQID_READYLIST                          ; A = readylist
+;         sta.w loword(kQueueTabPrev),X                ; qtPrev[next] = readylist
+;         tya                                          ; A = readylist.next
+;         ldx.w $0001                                  ; X = prev
+;         sta.w loword(kQueueTabNext),X                ; qtNext[prev] = readylist.next
+;         lda #KQID_NMILIST
+;         sta.w loword(kQueueTabNext) + KQID_NMILIST
+;         sta.w loword(kQueueTabPrev) + KQID_NMILIST
+; @skiplist:
     jsr KReadInput__
     ; Check if IRQ is disabled
     lda.l kNMITIMEN
@@ -95,7 +113,7 @@ KernelVBlank2__:
         and #$00FF
         asl
         tay
-        ldx.w loword(kProcessSPBackupTable),Y
+        ldx.w loword(kProcTabStackSave),Y
         txs
         pld
         plb

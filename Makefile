@@ -18,7 +18,8 @@ SOURCES  := main.asm\
 			lib.asm\
 			sem.asm\
 			test.asm\
-			kmem.asm
+			kmem.asm\
+			queue.asm
 
 OBJECTS  := $(SOURCES:%.asm=$(OBJDIR)/%.obj)
 PALETTES := $(wildcard assets/palettes/*.hex)

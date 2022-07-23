@@ -10,3 +10,4 @@ obj/lib.obj
 obj/sem.obj
 obj/test.obj
 obj/kmem.obj
+obj/queue.obj

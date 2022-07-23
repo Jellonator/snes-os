@@ -2,20 +2,19 @@
 .ENUM $7E2000
     kDirectPageMask ds (DP_BLOCK_COUNT / 8)
     kCurrentPID db ; active process's PID
-    kListNull db ; null process list
-    kListActive db ; active process list
     kNMITIMEN db ; stores current value of NMITEN (read-only) hardware register
     kNextFreeMemoryBlock dw ; address of next free memory block
 ; Process info stored in tables
-    kProcessStatusTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessFlagTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessDirectPageIndexTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessDirectPageCountTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessNextIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessPrevIdTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessSPBackupTable dsw MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessNameBankTable ds MAX_CONCURRENT_PROCESSES_COUNT
-    kProcessNameTable dsw MAX_CONCURRENT_PROCESSES_COUNT
+    kProcTabStatus ds KPROC_NUM
+    kProcTabFlag ds KPROC_NUM
+    kProcTabDirectPageIndex ds KPROC_NUM
+    kProcTabDirectPageCount ds KPROC_NUM
+    kProcTabStackSave dsw KPROC_NUM
+    kProcTabNameBank ds KPROC_NUM
+    kProcTabNamePtr dsw KPROC_NUM
+; queueinfo
+    kQueueTabNext ds KQUEUE_NUM
+    kQueueTabPrev ds KQUEUE_NUM
 ; terminal info
     kTermPrintVMEMPtr dw ; index of VMEM pointer
     kTermOffY dw ; Y-offset of terminal, used for scrolling
@@ -25,7 +24,7 @@
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
     kTempBuffer ds 256 ; generic temporary buffer
 ; semaphore info
-    ; kSemCountTable ds KSEM_NUM
+    kSemTabCount ds KSEM_NUM
     ; kSemPIDTable ds KSEM_NUM
 ; joypad inputs
     kJoy1Raw dw
