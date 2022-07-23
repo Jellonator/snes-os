@@ -14,7 +14,7 @@
 .DEFINE JOY_ID $000F
 
 ; Memory layout info
-.DEFINE MAX_CONCURRENT_PROCESSES_COUNT 64
+.DEFINE KPROC_NUM 64
 .DEFINE DP_BLOCK_COUNT 256
 .DEFINE DP_BLOCK_SIZE 32 ; $2000 = DP_BLOCK_COUNT * DP_BLOCK_SIZE
 
@@ -22,10 +22,10 @@
 .DEFINE MEM_BLOCK_COUNT 256 ; number of pages in $7F
 
 ; Process data
-.DEFINE PROCESS_NULL 0
-.DEFINE PROCESS_READY 1
-.DEFINE PROCESS_SUSPEND 2
-.DEFINE PROCESS_WAIT_NMI $81 ; process is waiting for NMI
+.DEFINE PROCESS_NULL 0 ; in free list
+.DEFINE PROCESS_READY 1 ; in ready list
+.DEFINE PROCESS_SUSPEND 2 ; not in any list
+.DEFINE PROCESS_WAIT_NMI 3 ; process is waiting for NMI
 ; special property: (PROCESS_WAIT_NMI & $7F) == PROCESS_READY
 
 .DEFINE PROCFLAG_BANK $01 ; 0 = bank $7E, 1 = bank $7F
@@ -39,4 +39,15 @@
 
 ; Semaphore info
 .DEFINE KSEM_PID_FREE $80 ; top bit of PID means slot is free
-.DEFINE KSEM_NUM 63
+.DEFINE KSEM_NUM 64
+
+; queue info
+.DEFINE KQUEUE_NUM 255
+.DEFINE KQID_PROC 0 ; first queue reserved for processes
+.DEFINE KQID_SEM KPROC_NUM ; first queue reserved for semaphores
+; preset queue IDs
+.ENUMID (KPROC_NUM + KSEM_NUM)
+.ENUMID KQID_FREELIST ; List used for inactive processes
+.ENUMID KQID_NMILIST ; List used for processing waiting for NMI
+.ENUMID KQID_FIRST ; First freely allocatable QID
+.DEFINE KQID_READYLIST ; List used for ready processes, also the init process

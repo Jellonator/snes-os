@@ -11,43 +11,45 @@
 ;   name       [dl] $07
 ;   function   [dl] $04
 ; Returns:
-;   PID: X [db]
+;   PID: X [db], = 0 on error
 kcreateprocess:
     sep #$30 ; 8b AXY
     .DisableInt__ ; [+1; 1]
     phb ; [+1; 2]
     .ChangeDataBank $7E
-    ; TODO: failure when no more free PIDs
     ; get next PID
-    ldx.w loword(kListNull)
-    ; remove X from null list
-    .ListRemoveX kListNull
-    ; add X to active list
-    .ListAddX kListActive
+    ldx #KQID_FREELIST
+    jsl kdequeue
+    cpy #0
+    bne +
+        ldx #0
+        rtl
+    +:
+    tyx
     ; set values
-    lda #PROCESS_SUSPEND
-    sta.w loword(kProcessStatusTable),X
-    stz.w loword(kProcessFlagTable),X
+    lda #PROCESS_SUSPEND ; start suspended
+    sta.w loword(kProcTabStatus),X
+    stz.w loword(kProcTabFlag),X
     lda 2+$09,s
-    sta.w loword(kProcessNameBankTable),X
+    sta.w loword(kProcTabNameBank),X
     phx ; +1 [3]
     txa
     asl
     tax
     rep #$20
     lda 3+$07,s
-    sta.w loword(kProcessNameTable),X
+    sta.w loword(kProcTabNamePtr),X
     sep #$20
     plx ; -1 [2]
     ; for now, just allocate DP as PID*4
     ; TODO: 'correct' stack allocation stretegy
     phx ; push PID [+1; 3]
     lda #4
-    sta.w loword(kProcessDirectPageCountTable),X
+    sta.w loword(kProcTabDirectPageCount),X
     txa
     asl
     asl
-    sta.w loword(kProcessDirectPageIndexTable),X
+    sta.w loword(kProcTabDirectPageIndex),X
     rep #$30 ; 16b AXY
     and #$00FF
     ; DP index -> DP
@@ -76,7 +78,7 @@ kcreateprocess:
     asl
     tax
     pla
-    sta.w loword(kProcessSPBackupTable),X ; store SP
+    sta.w loword(kProcTabStackSave),X ; store SP
     tax ; X = top of stack
     lda 3+$04,s
     sta.w 11,X ; program counter
@@ -114,10 +116,31 @@ kcreateprocess:
 
 ; Resume process in X
 kresumeprocess:
-    sep #$20 ; 8b A
+    sep #$30 ; 8b AXY
+    .DisableInt__
     lda #PROCESS_READY
-    sta.l kProcessStatusTable,X
+    sta.l kProcTabStatus,X
+    txy
+    jsl kremoveitem
+    ldx #1 ; enqueue after init process
+    jsl kenqueue
+    .RestoreInt__
     rtl
+
+; wait for NMI signal
+pwaitfornmi:
+    sep #$30
+    .DisableInt__
+    lda.l kCurrentPID
+    tax
+    lda #PROCESS_WAIT_NMI
+    sta.l kProcTabStatus,X
+    txy
+    jsl kremoveitem
+    ldx #KQID_NMILIST
+    jsl kenqueue
+    .RestoreInt__
+    jmp kreschedule
 
 ; reschedule current process
 kreschedule:
@@ -125,22 +148,22 @@ kreschedule:
     nop
     rtl
 
-; Set process X's state to A
-; A and X should be 8b
-ksetprocessstate:
-    sta.l kProcessStatusTable,X 
-    rtl
+; ; Set process X's state to A
+; ; A and X should be 8b
+; ksetprocessstate:
+;     sta.l kProcessStatusTable,X 
+;     rtl
 
-; Set current process's state to A
-; A should be 8b
-ksetcurrentprocessstate:
-    sep #$30
-    pha
-    lda.l kCurrentPID
-    tax
-    pla
-    sta.l kProcessStatusTable,X
-    rtl
+; ; Set current process's state to A
+; ; A should be 8b
+; ksetcurrentprocessstate:
+;     sep #$30
+;     pha
+;     lda.l kCurrentPID
+;     tax
+;     pla
+;     sta.l kProcessStatusTable,X
+;     rtl
 
 ; Kill process with ID in X
 kkill:
@@ -150,11 +173,14 @@ kkill:
     .ChangeDataBank $7E
     .DisableInt__
     ; set status to PROCESS_NULL
-    stz.w loword(kProcessStatusTable),X
-    ; remove process from active list
-    .ListRemoveX kListActive
-    ; add to null list
-    .ListAddX kListNull
+    stz.w loword(kProcTabStatus),X
+    ; remove process from queues
+    txy
+    jsl kremoveitem
+    ; add to free list
+    ldx #KQID_FREELIST
+    jsl kenqueue
+    tyx
     ; if current process is renderer, then return renderer to OS
     sep #$30 ; 8b AXY
     cpx.w loword(kRendererProcess)

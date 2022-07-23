@@ -3,9 +3,9 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KSem" FREE
 
-; ; create a semaphore, returns SID8 in X
-; ; initializes semaphore to A
-; semcreate:
+; create a semaphore, returns SID8 in X
+; initializes semaphore to A
+semcreate:
 ;     sep #$30 ; 8b AXY
 ;     pha
 ;     .DisableInt__
@@ -20,14 +20,20 @@
 ;     .RestoreInt__
 ;     pla
 ;     sta.l kSemCountTable,X
-;     rtl
+    rtl
+
+semwait:
+    rtl
+
+semsignal:
+    rtl
 
 ; ; Frees the semephore in X
-; semdelete:
+semdelete:
 ;     sep #$20
 ;     lda #80
 ;     sta.l kSemPIDTable,X
 ;     ; TODO: free waiting processes
-;     rtl
+    rtl
 
 .ENDS

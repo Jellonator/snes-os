@@ -863,9 +863,10 @@ _shell_update:
     sep #$20
     .RestoreInt__
     ; wait for NMI and reschedule
-    lda #PROCESS_WAIT_NMI
-    jsl ksetcurrentprocessstate
-    jsl kreschedule
+    jsl pwaitfornmi
+    ; lda #PROCESS_WAIT_NMI
+    ; jsl ksetcurrentprocessstate
+    ; jsl kreschedule
     rts
 
 os_shell:
@@ -915,7 +916,6 @@ _ps_state_tbl:
     .db '?'
     .db 'R'
     .db 'S'
-    .ds PROCESS_WAIT_NMI-PROCESS_SUSPEND-1, '?'
     .db 'W'
     .ds 255-PROCESS_WAIT_NMI-1, '?'
 
@@ -942,9 +942,18 @@ _sh_ps:
     +:
     stx.b $08 ; $08 is mem
 ; iterate processes
-    lda #1
+    ldx #1
 @loop:
-    sta.b $06 ; $06 is current pid
+    stx.b $06 ; $06 is current pid
+    lda.l kProcTabStatus,X
+    and #$00FF
+    bne +
+        inx
+        cpx #KPROC_NUM
+        bcs @end
+        bra @loop
++:
+    lda.b $06
     ldx.b $08
     ; write PID
     sep #$20 ; 8b A, 16b XY
@@ -960,7 +969,7 @@ _sh_ps:
     lda #0
     xba
     ldx.b $06
-    lda.l kProcessStatusTable,X
+    lda.l kProcTabStatus,X
     tax
     lda.l _ps_state_tbl,X
     jsl kputc
@@ -971,27 +980,27 @@ _sh_ps:
     phb
     ldx.b $06
     sep #$20
-    lda.l kProcessNameBankTable,X
+    lda.l kProcTabNameBank,X
     pha
     plb
     rep #$20
     txa
     asl
     tax
-    lda.l kProcessNameTable,X
+    lda.l kProcTabNamePtr,X
     tay
     jsl kputstring
     plb
     sep #$20
     lda #'\n'
     jsl kputc
-    rep #$20
+    rep #$30
     ; next PID
     ldx.b $06
-    lda.l kProcessNextIdTable,X
-    and #$00FF
-    cmp #1
-    bne @loop
+    inx
+    cpx #KPROC_NUM
+    bcc @loop
+@end:
     - jsl kreschedule
     jsl exit
     bra -
