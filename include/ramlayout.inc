@@ -25,7 +25,6 @@
     kTempBuffer ds 256 ; generic temporary buffer
 ; semaphore info
     kSemTabCount ds KSEM_NUM
-    ; kSemPIDTable ds KSEM_NUM
 ; joypad inputs
     kJoy1Raw dw
     kJoy1Press dw

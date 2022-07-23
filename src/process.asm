@@ -127,6 +127,17 @@ kresumeprocess:
     .RestoreInt__
     rtl
 
+; Suspend process in X
+process_suspend:
+    sep #$30
+    .DisableInt__
+    lda #PROCESS_WAIT_SEM
+    sta.l kProcTabStatus,X
+    txy
+    jsl kremoveitem
+    .RestoreInt__
+    rtl
+
 ; wait for NMI signal
 pwaitfornmi:
     sep #$30

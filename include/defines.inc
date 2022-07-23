@@ -26,6 +26,7 @@
 .DEFINE PROCESS_READY 1 ; in ready list
 .DEFINE PROCESS_SUSPEND 2 ; not in any list
 .DEFINE PROCESS_WAIT_NMI 3 ; process is waiting for NMI
+.DEFINE PROCESS_WAIT_SEM 4 ; process is waiting on semaphore
 ; special property: (PROCESS_WAIT_NMI & $7F) == PROCESS_READY
 
 .DEFINE PROCFLAG_BANK $01 ; 0 = bank $7E, 1 = bank $7F

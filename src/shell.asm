@@ -916,6 +916,7 @@ _ps_state_tbl:
     .db '?'
     .db 'R'
     .db 'S'
+    .db 'I'
     .db 'W'
     .ds 255-PROCESS_WAIT_NMI-1, '?'
 
