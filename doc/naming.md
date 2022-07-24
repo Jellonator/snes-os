@@ -10,6 +10,7 @@ Prefixes:
 * queue - process queue management
 * proc - process management
 * mem - memory management
+* sh - shell functions
 
 Standard library functions do not have a set prefix
 

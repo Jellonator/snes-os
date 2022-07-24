@@ -111,7 +111,9 @@ _teststrempty:
     jsl kPutC
 .ENDM
 
-kTestProgram__:
+
+shTest_name: .db "test\0"
+shTest
     .ChangeDataBank $01
     ; TEST memoryCmp8
     .StartGroup "memoryCmp8"
