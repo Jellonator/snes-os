@@ -860,8 +860,24 @@ _shell_update:
     jsl procWaitNMI
     rts
 
+_snow_logo:
+    .db "/--------------------------" '\'
+    .db "| /--- /\  | \| |/ |   |   " '|'
+    .db "| |    | \ |  \ /  |   |   " '|'
+    .db "| \--\ | | | >-*-< |   |   " '|'
+    .db "|    | | \ |  / \  | ^ |   " '|'
+    .db "| ---/ |  \/ /| |\ \/ \/OS " '|'
+    .db "\--------------------------" '/'
+    .db "type 'help' for command list\0"
+
 os_shell:
     jsr _shell_init
+    phb
+    .ChangeDataBank bankbyte(_snow_logo)
+    rep #$10
+    ldy #loword(_snow_logo)
+    jsl kPutString
+    plb
     @loop:
         jsr _shell_update
         jmp @loop
