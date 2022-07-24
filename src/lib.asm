@@ -4,7 +4,7 @@
 .SECTION "Lib" FREE
 
 ; compare A bytes between X and Y (A is 8b)
-memcmp8:
+memoryCmp8:
     .ACCU 8
     cmp.b #0
     bne @loop
@@ -31,7 +31,7 @@ memcmp8:
     rtl
 
 ; compare strings X and Y
-strcmp:
+stringCmp:
     sep #$20 ; 8b A
     bra @loop
 @continue:
@@ -62,7 +62,7 @@ strcmp:
 ; Push order:
 ;   str1 [dl], $07
 ;   str2 [dl], $04
-strcmpl:
+stringCmpL:
     rep #$30
     tsc ; A = SP
     phd ; Push DP
@@ -97,7 +97,7 @@ strcmpl:
 ; If character is found, X will be pointer to character
 ; otherwise, X will be NULL
 ; A must be 8b
-strchr:
+stringFindChar:
     .ACCU 8
     .INDEX 16
     cmp.w $0000,X
@@ -112,11 +112,11 @@ strchr:
     rtl
     +:
     inx
-    bra strchr
+    bra stringFindChar
 
 ; get length of string in X
 ; length is stored in A
-strlen:
+stringLen:
     .INDEX 16
     phx
     sep #$20 ; 8b A
@@ -135,7 +135,7 @@ strlen:
 
 ; transform string in X to 16b unsigned integer
 ; result is stored in A, X will point to character after last read digit
-strtouw:
+stringToU16:
     .INDEX 16
     rep #$20
     lda.w #0
@@ -164,7 +164,7 @@ strtouw:
 
 ; transform string in X to 16b signed integer
 ; result is stored in A, X will point to character after last read digit
-strtoiw:
+stringToI16:
     .INDEX 16
     sep #$20
     lda.w $0000,X
@@ -177,7 +177,7 @@ strtoiw:
     @neg:
         ; negative
         inx
-        jsl strtouw
+        jsl stringToU16
         .ACCU 16
         ; two's complement
         eor.w #$FFFF
@@ -185,7 +185,7 @@ strtoiw:
         adc.w #0
         rtl
     @pos:
-        jmp strtouw
+        jmp stringToU16
 
 _chtableupper:
     .DB "0123456789"
@@ -197,7 +197,7 @@ _chtableupper:
 
 ; write uint8 A to string X as pointer
 ; Afterwards, X will point to end of string
-writeptrb
+writePtr8
     .INDEX 16
     .ACCU 8
     pha
@@ -226,7 +226,7 @@ writeptrb
 
 ; write uint16 A to string X as pointer
 ; Afterwards, X will point to end of string
-writeptrw:
+writePtr16:
     .INDEX 16
     .ACCU 16
     pha
@@ -275,7 +275,7 @@ writeptrw:
 
 ; write uint16 A to string X
 ; Afterwards, X will point to end of string (*X == '\0')
-writeuw:
+writeU16:
     .INDEX 16
     .ACCU 16
     ; special case: A==0
@@ -351,7 +351,7 @@ writeuw:
 
 ; write int16 A to string X
 ; Afterwards, X will point to end of string (*X == '\0')
-writeiw:
+writeI16:
     .INDEX 16
     .ACCU 16
     bit #$8000
@@ -366,11 +366,11 @@ writeiw:
     sec
     adc.w #0
     +:
-    jmp writeuw
+    jmp writeU16
 
 ; write char A to string X
 ; Afterwards, X will point to end of string (*X == '\0')
-writec:
+writeChar:
     .INDEX 16
     .ACCU 8
     sta.w $0000,X

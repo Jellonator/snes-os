@@ -5,7 +5,7 @@
 
 .include "assets.inc"
 
-KPrintPalette__:
+vPrintPalette:
     .DCOLOR_RGB5  0,  0,  0
     .DCOLOR_RGB5 31, 31, 31
     .DCOLOR_RGB5 20, 16, 22
@@ -30,7 +30,7 @@ KPrintPalette__:
 .DEFINE MAX_TERM_WIDTH 28 ; maximum of 28 characters per row
 .DEFINE ROW_START 25 ; row to start writing to
 
-KPrintPrevRow__:
+vPrintPrevRow:
     ; update vmem ptr
     rep #$20
     lda.w loword(kTermPrintVMEMPtr)
@@ -50,7 +50,7 @@ KPrintPrevRow__:
     sta.l BG4VOFS
     rtl
 
-KPrintNextRow__:
+vPrintNextRow:
     ; update vmem ptr
     rep #$20
     lda.w loword(kTermPrintVMEMPtr)
@@ -67,7 +67,7 @@ KPrintNextRow__:
     adc #BG4_TILE_BASE_ADDR
     pha
     pea 32*2
-    jsl KClearVMem
+    jsl vClearMem
     rep #$20 ; 16b A
     pla
     pla
@@ -84,7 +84,7 @@ KPrintNextRow__:
     sta.l BG4VOFS
     rtl
 
-KInitPrinter__:
+vPrinterInit:
     rep #$30 ; 16b AXY
     stz.w loword(kTermBufferCount)
     lda #0
@@ -113,13 +113,13 @@ KInitPrinter__:
     lda #%00000000
     sta.l BGMODE
     ; Copy palette
-    pea $6000 | bankbyte(KPrintPalette__)
-    pea loword(KPrintPalette__)
-    jsl KCopyPalette4
+    pea $6000 | bankbyte(vPrintPalette)
+    pea loword(vPrintPalette)
+    jsl vCopyPalette4
     sep #$20 ; 8b A
     lda #$00
     sta $04,s
-    jsl KCopyPalette4
+    jsl vCopyPalette4
     rep #$20
     pla
     pla
@@ -131,7 +131,7 @@ KInitPrinter__:
     lda #bankbyte(sprites@KPrintFontAsset__)
     pha
     pea loword(sprites@KPrintFontAsset__)
-    jsl KCopyVMem
+    jsl vCopyMem
     sep #$20 ; 8 bit A
     pla
     rep #$20 ; 16 bit A
@@ -141,7 +141,7 @@ KInitPrinter__:
     ; clear screen
     pea BG4_TILE_BASE_ADDR
     pea 32*32*2
-    jsl KClearVMem
+    jsl vClearMem
     rep #$20 ; 16b A
     pla
     pla
@@ -152,7 +152,7 @@ KInitPrinter__:
     rtl
 
 ; Update printer during vblank
-KUpdatePrinter__:
+vUpdatePrinter:
     phb
     .ChangeDataBank $7E
 ; setup
@@ -187,7 +187,7 @@ KUpdatePrinter__:
     cmp #'\n'
     bne @putchar
 ; @newline:
-    jsl KPrintNextRow__
+    jsl vPrintNextRow
     rep #$30 ; 16b AXY
     bra @continue
 @putchar:
@@ -196,7 +196,7 @@ KUpdatePrinter__:
     and #$001F
     cmp #MAX_TERM_WIDTH-1
     bne +
-    jsl KPrintNextRow__
+    jsl vPrintNextRow
     rep #$30 ; 16b AXY
     jmp @continue
     +:
@@ -214,7 +214,7 @@ KUpdatePrinter__:
     rtl
 
 ; put single character (reg A, 8b)
-kputc:
+kPutC:
     .ACCU 8
     phb
     pha
@@ -242,7 +242,7 @@ kputc:
 
 ; put string from pointer Y into string buffer
 ; XY should be 16b
-kputstring:
+kPutString:
     .INDEX 16
     sep #$20 ; 8b A
     .DisableInt__

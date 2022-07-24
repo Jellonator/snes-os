@@ -48,17 +48,22 @@ _teststrempty:
 .MACRO .StartGroup ARGS groupname
     rep #$10
     ldy #@@@@@\.\@n
-    jsl kputstring
+    jsl kPutString
     bra @@@@@\.\@a
     @@@@@\.\@n:
-    .db groupname, ": \0"
+    .db groupname
+    .db ":"
+    .REPT (16-groupname.length)
+        .db " "
+    .ENDR
+    .db "\0"
     @@@@@\.\@a:
 .ENDM
 
 .MACRO .EndGroup
     sep #$20
     lda #'\n'
-    jsl kputc
+    jsl kPutC
 .ENDM
 
 .MACRO .CheckAEq ARGS value
@@ -73,7 +78,7 @@ _teststrempty:
     sep #$20
     lda.b #'X'
     @@@@@\@\.@b:
-    jsl kputc
+    jsl kPutC
 .ENDM
 
 .MACRO .CheckXEq ARGS value
@@ -88,7 +93,7 @@ _teststrempty:
     sep #$20
     lda.b #'X'
     @@@@@\@\.@b:
-    jsl kputc
+    jsl kPutC
 .ENDM
 
 .MACRO .CheckANeq ARGS value
@@ -103,151 +108,151 @@ _teststrempty:
     sep #$20
     lda.b #'X'
     @@@@@\@\.@b:
-    jsl kputc
+    jsl kPutC
 .ENDM
 
-KTestProgram__:
+kTestProgram__:
     .ChangeDataBank $01
-    ; TEST memcmp8
-    .StartGroup "MEMCMP8"
+    ; TEST memoryCmp8
+    .StartGroup "memoryCmp8"
     rep #$10 ; 16b XY
     sep #$20 ; 8b A
     lda #4
     ldx #_teststr1
     ldy #_teststr2
-    jsl memcmp8
+    jsl memoryCmp8
     .CheckAEq 0
     rep #$10 ; 16b XY
     sep #$20 ; 8b A
     lda #5
     ldx #_teststr1
     ldy #_teststr2
-    jsl memcmp8
+    jsl memoryCmp8
     .CheckANeq 0
     rep #$10 ; 16b XY
     sep #$20 ; 8b A
     lda #0
     ldx #_teststr1
     ldy #_teststr3
-    jsl memcmp8
+    jsl memoryCmp8
     .CheckAEq 0
     rep #$10 ; 16b XY
     sep #$20 ; 8b A
     lda #1
     ldx #_teststr1
     ldy #_teststr3
-    jsl memcmp8
+    jsl memoryCmp8
     .CheckANeq 0
     .EndGroup
-    ; TEST strcmp
-    .StartGroup "STRCMP"
+    ; TEST stringCmp
+    .StartGroup "stringCmp"
     rep #$10 ; 16b XY
     ldx #_teststr1
     ldy #_teststr2
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq -1
     rep #$10 ; 16b XY
     ldx #_teststr2
     ldy #_teststr1
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 1
     rep #$10 ; 16b XY
     ldx #_teststr2
     ldy #_teststr22
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq -1
     rep #$10 ; 16b XY
     ldx #_teststr22
     ldy #_teststr2
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 1
     rep #$10 ; 16b XY
     ldx #_teststrempty
     ldy #_teststr2
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq -1
     rep #$10 ; 16b XY
     ldx #_teststr2
     ldy #_teststrempty
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 1
     rep #$10 ; 16b XY
     ldx #_teststrempty
     ldy #_teststrempty
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$10 ; 16b XY
     ldx #_teststr3
     ldy #_teststr3
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-    ; TEST strcmpl
-    .StartGroup "STRCMPL"
+    ; TEST stringCmpL
+    .StartGroup "stringCmpL"
     .PEAL _teststr1
     .PEAL _teststr2
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq -1
     .POPN 6
     .PEAL _teststr2
     .PEAL _teststr1
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq 1
     .POPN 6
     .PEAL _teststr2
     .PEAL _teststr22
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq -1
     .POPN 6
     .PEAL _teststr22
     .PEAL _teststr2
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq 1
     .POPN 6
     .PEAL _teststrempty
     .PEAL _teststr2
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq -1
     .POPN 6
     .PEAL _teststr2
     .PEAL _teststrempty
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq 1
     .POPN 6
     .PEAL _teststrempty
     .PEAL _teststrempty
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq 0
     .POPN 6
     .PEAL _teststr3
     .PEAL _teststr3
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     .CheckAEq 0
     .POPN 6
     .EndGroup
-    ; TEST strchr
-    .StartGroup "STRCHR"
+    ; TEST stringFindChar
+    .StartGroup "stringFindChar"
     rep #$10 ; 16b XY
     sep #$20 ; 8b A
     lda #'b'
     ldx #_teststr4
-    jsl strchr
+    jsl stringFindChar
     pha
     phx
     php
@@ -256,7 +261,7 @@ KTestProgram__:
     plx
     pla
     inx
-    jsl strchr
+    jsl stringFindChar
     pha
     phx
     php
@@ -265,7 +270,7 @@ KTestProgram__:
     plx
     pla
     inx
-    jsl strchr
+    jsl stringFindChar
     pha
     phx
     php
@@ -274,7 +279,7 @@ KTestProgram__:
     plx
     pla
     inx
-    jsl strchr
+    jsl stringFindChar
     pha
     phx
     php
@@ -284,87 +289,87 @@ KTestProgram__:
     pla
     inx
     .EndGroup
-    ; TEST strlen
-    .StartGroup "STRLEN"
+    ; TEST stringLen
+    .StartGroup "stringLen"
     rep #$10
     ldx #_teststrempty
-    jsl strlen
+    jsl stringLen
     .ACCU 16
     .CheckAEq 0
     rep #$10
     ldx #_teststr1
-    jsl strlen
+    jsl stringLen
     .ACCU 16
     .CheckAEq 7
     rep #$10
     ldx #_teststr22
-    jsl strlen
+    jsl stringLen
     .ACCU 16
     .CheckAEq 8
     .EndGroup
-    ; TEST strtouw
-    .StartGroup "STRTOUW"
+    ; TEST stringToU16
+    .StartGroup "stringToU16"
     rep #$10
     ldx #_testnum_420
-    jsl strtouw
+    jsl stringToU16
     .ACCU 16
     .CheckAEq 420
     rep #$10
     ldx #_testnum_32767
-    jsl strtouw
+    jsl stringToU16
     .ACCU 16
     .CheckAEq 32767
     rep #$10
     ldx #_testnum_65535
-    jsl strtouw
+    jsl stringToU16
     .ACCU 16
     .CheckAEq 65535
     rep #$10
     ldx #_testnum_0
-    jsl strtouw
+    jsl stringToU16
     .ACCU 16
     .CheckAEq 0
     .EndGroup
-    ; TEST strtoiw
-    .StartGroup "STRTOIW"
+    ; TEST stringToI16
+    .StartGroup "stringToI16"
     rep #$10
     ldx #_testnum_420
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq 420
     rep #$10
     ldx #_testnum_32767
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq 32767
     rep #$10
     ldx #_testnum_0
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq 0
     rep #$10
     ldx #_testnum_N0
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq 0
     rep #$10
     ldx #_testnum_N420
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq -420
     rep #$10
     ldx #_testnum_N32767
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq -32767
     rep #$10
     ldx #_testnum_N32768
-    jsl strtoiw
+    jsl stringToI16
     .ACCU 16
     .CheckAEq -32768
     .EndGroup
-    ; TEST writeuw
-    .StartGroup "WRITEUW"
+    ; TEST writeU16
+    .StartGroup "writeU16"
     rep #$30 ; 16b AXY
     tdc
     clc
@@ -372,42 +377,42 @@ KTestProgram__:
     sta.b $06 ; $06 = string buf
     tax ; X = D + 8
     lda #420
-    jsl writeuw
+    jsl writeU16
     ldx.b $06
     ldy.w #_testnum_420
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #0
-    jsl writeuw
+    jsl writeU16
     ldx.b $06
     ldy.w #_testnum_0
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #32767
-    jsl writeuw
+    jsl writeU16
     ldx.b $06
     ldy.w #_testnum_32767
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #65535
-    jsl writeuw
+    jsl writeU16
     ldx.b $06
     ldy.w #_testnum_65535
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-    ; TEST writeiw
-    .StartGroup "WRITEIW"
+    ; TEST writeI16
+    .StartGroup "writeI16"
     rep #$30 ; 16b AXY
     tdc
     clc
@@ -415,59 +420,59 @@ KTestProgram__:
     sta.b $06 ; $06 = string buf
     tax ; X = D + 8
     lda #420
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_420
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #0
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_0
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #32767
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_32767
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #-32767
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_N32767
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #-32768
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_N32768
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     rep #$30 ; 16b AXY
     ldx.b $06
     lda #-420
-    jsl writeiw
+    jsl writeI16
     ldx.b $06
     ldy.w #_testnum_N420
-    jsl strcmp
+    jsl stringCmp
     .ACCU 8
     .CheckAEq 0
     .EndGroup
-    jsl exit
+    jsl procExit
 
 _errtxt: .db "ERROR\0"
 

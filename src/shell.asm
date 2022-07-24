@@ -270,12 +270,6 @@ _shell_update_charset:
         dey
         bne -
     .ENDR
-    ; lda #$0036
-    ; sta.l VMDATA
-    ; lda #$0039
-    ; sta.l VMDATA
-; end
-    ; plb
     rts
 
 __ShellSymLower:
@@ -321,7 +315,7 @@ _shell_push_char:
     bcc +
         phb
         .ChangeDataBank $7E
-        jsl KPrintNextRow__
+        jsl vPrintNextRow
         plb
         stz.b wCharLinePos
     +
@@ -382,7 +376,7 @@ _shell_run_command:
     lda.l ShellCommandList+command_t.plName,X
     pha
     ; check command match
-    jsl strcmpl
+    jsl stringCmpL
     .ACCU 8
     cmp #0
     beq @runcommand
@@ -405,15 +399,15 @@ _shell_run_command:
     phk
     plb
     ldy #@errtxt
-    jsl kputstring
+    jsl kPutString
     plb
     ; free memory
     rep #$10
     ldx.b StrBuf
-    jsl memfree
+    jsl memFree
     rep #$10
     ldx.b PtrBuf
-    jsl memfree
+    jsl memFree
     rts
 @runcommand:
     ; found command, run it
@@ -443,7 +437,7 @@ _shell_run_command:
     lda.l ShellCommandList,X
     pha
     ; start process
-    jsl kcreateprocess
+    jsl procCreate
     .INDEX 8
     phx
     ; change owner of memory
@@ -451,13 +445,13 @@ _shell_run_command:
     txa
     rep #$10 ; 8A, 16XY
     ldx.b PtrBuf
-    jsl memchown
+    jsl memChangeOwner
     ldx.b StrBuf
-    jsl memchown
+    jsl memChangeOwner
     ; start process
     sep #$10 ; 8A, 8XY
     plx
-    jsl kresumeprocess
+    jsl procResume
     ; end
     .POPN 14
     rts
@@ -471,7 +465,7 @@ _shell_parse_command:
     lda.b wLenStrBuf
     inc A
     pha
-    jsl memalloc
+    jsl memAlloc
     rep #$30
     stx.b StrBuf
     pla
@@ -480,7 +474,7 @@ _shell_parse_command:
     and #$FFFE
     pha
     ; allocate pointer buffer
-    jsl memalloc
+    jsl memAlloc
     rep #$30
     stx.b PtrBuf
     pla
@@ -564,7 +558,7 @@ _shell_enter:
 ; next row
     phb
     .ChangeDataBank $7E
-    jsl KPrintNextRow__
+    jsl vPrintNextRow
     plb
 ; parse command
     rep #$20
@@ -624,7 +618,7 @@ _shell_backspace:
         sta.b wCharLinePos
         phb
         .ChangeDataBank $7E
-        jsl KPrintPrevRow__
+        jsl vPrintPrevRow
         plb
     +:
     rts
@@ -643,7 +637,7 @@ _shell_init:
     lda #bankbyte(sprites@ShellUIAsset__)
     pha
     pea loword(sprites@ShellUIAsset__)
-    jsl KCopyVMem
+    jsl vCopyMem
     sep #$20 ; 8 bit A
     pla
     rep #$20 ; 16 bit A
@@ -653,7 +647,7 @@ _shell_init:
     ; clear text screen
     pea BG1_SHELLTEXT_TILE_BASE_ADDR
     pea 32*32*2 ; 32x32 tiles
-    jsl KClearVMem
+    jsl vClearMem
     rep #$20 ; 16b A
     pla
     pla
@@ -664,7 +658,7 @@ _shell_init:
     lda #bankbyte(ShellBackgroundData__)
     pha
     pea loword(ShellBackgroundData__)
-    jsl KCopyVMem
+    jsl vCopyMem
     sep #$20 ; 8 bit A
     pla
     rep #$20 ; 16 bit A
@@ -674,17 +668,17 @@ _shell_init:
     ; copy palette
     pea $6000 | bankbyte(ShellTextPalette__)
     pea loword(ShellTextPalette__)
-    jsl KCopyPalette16
+    jsl vCopyPalette16
     sep #$20 ; 8b A
     lda #$00
     sta $04,s
-    jsl KCopyPalette16
+    jsl vCopyPalette16
     rep #$20
     pla
     pla
     pea $2000 | bankbyte(ShellBackPalette__)
     pea loword(ShellBackPalette__)
-    jsl KCopyPalette4
+    jsl vCopyPalette4
     rep #$20
     pla
     pla
@@ -700,12 +694,12 @@ _shell_init:
     sta.l SCRNDESTM
     ; initialize other
     pea CHAR_BUFFER_SIZE+1
-    jsl memalloc
+    jsl memAlloc
     stx.b pwStrBuf
     rep #$20 ; 16b A
     pla
     pea 256
-    jsl memalloc
+    jsl memAlloc
     stx.b pwDrawBuf
     rep #$20 ; 16b A
     pla
@@ -727,7 +721,7 @@ _shell_init:
     rep #$20
     lda #loword(_shell_render)
     pha
-    jsl KSetRenderer
+    jsl vSetRenderer
     sep #$20
     pla
     pla
@@ -741,7 +735,7 @@ _shell_init:
     rts
 
 _shell_render:
-    jsl KUpdatePrinter__
+    jsl vUpdatePrinter
     ; test flags
     sep #$20
     lda #SHFLAG_UPDATE_CHARS
@@ -863,10 +857,7 @@ _shell_update:
     sep #$20
     .RestoreInt__
     ; wait for NMI and reschedule
-    jsl pwaitfornmi
-    ; lda #PROCESS_WAIT_NMI
-    ; jsl ksetcurrentprocessstate
-    ; jsl kreschedule
+    jsl procWaitNMI
     rts
 
 os_shell:
@@ -885,7 +876,7 @@ _sh_help:
     .ChangeDataBank bankbyte(_help_txt)
     rep #$30
     ldy #loword(_help_txt)
-    jsl kputstring
+    jsl kPutString
     rep #$30
     stz.b $06
 @loop:
@@ -897,11 +888,11 @@ _sh_help:
     rep #$20
     lda.l ShellCommandList+command_t.plName,X
     tay
-    jsl kputstring
+    jsl kPutString
     .ChangeDataBank bankbyte(_help_sep)
     rep #$20
     ldy #loword(_help_sep)
-    jsl kputstring
+    jsl kPutString
     rep #$30
     lda.b $06
     clc
@@ -910,7 +901,7 @@ _sh_help:
     cmp #_sizeof_command_t * NUM_COMMANDS
     bcc @loop
 
-    jsl exit
+    jsl procExit
 
 _ps_state_tbl:
     .db '?'
@@ -930,16 +921,16 @@ _sh_ps:
     .ChangeDataBank bankbyte(_ps_txt)
     rep #$30
     ldy #_ps_txt
-    jsl kputstring
+    jsl kPutString
     plb
 ; allocate string
-    pea 255
-    jsl memalloc
+    pea 16
+    jsl memAlloc
     rep #$30 ; 16b AXY
     pla
     cpx #0
     bne +
-        jsl exit
+        jsl procExit
     +:
     stx.b $08 ; $08 is mem
 ; iterate processes
@@ -958,13 +949,13 @@ _sh_ps:
     ldx.b $08
     ; write PID
     sep #$20 ; 8b A, 16b XY
-    jsl writeptrb
+    jsl writePtr8
     lda #' '
-    jsl writec
+    jsl writeChar
     rep #$20
     ; write string
     ldy.b $08
-    jsl kputstring
+    jsl kPutString
     ; write state
     sep #$20
     lda #0
@@ -973,9 +964,9 @@ _sh_ps:
     lda.l kProcTabStatus,X
     tax
     lda.l _ps_state_tbl,X
-    jsl kputc
+    jsl kPutC
     lda #' '
-    jsl kputc
+    jsl kPutC
     rep #$20
     ; write name
     phb
@@ -990,11 +981,11 @@ _sh_ps:
     tax
     lda.l kProcTabNamePtr,X
     tay
-    jsl kputstring
+    jsl kPutString
     plb
     sep #$20
     lda #'\n'
-    jsl kputc
+    jsl kPutC
     rep #$30
     ; next PID
     ldx.b $06
@@ -1002,17 +993,15 @@ _sh_ps:
     cpx #KPROC_NUM
     bcc @loop
 @end:
-    - jsl kreschedule
-    jsl exit
-    bra -
+    jsl procExit
 
 _sh_kill_name: .db "kill\0"
 _sh_kill:
-    jsl exit
+    jsl procExit
 
 _sh_clear_name: .db "clear\0"
 _sh_clear:
-    jsl exit
+    jsl procExit
 
 _sh_echo_name: .db "echo\0"
 _sh_echo:
@@ -1032,10 +1021,10 @@ _sh_echo:
     pha
     phx
     php
-    jsl kputstring
+    jsl kPutString
     sep #$20
     lda #' '
-    jsl kputc
+    jsl kPutC
     plp
     plx
     pla
@@ -1046,17 +1035,17 @@ _sh_echo:
 @end:
     sep #$20
     lda #'\n'
-    jsl kputc
-    jsl exit
+    jsl kPutC
+    jsl procExit
 
 _sh_meminfo_name: .db "meminfo\0"
 _sh_meminfo:
-    jsl KPrintMemoryDump__
-    jsl exit
+    jsl memPrintDump
+    jsl procExit
 
 _sh_test_name: .db "test\0"
 _sh_test:
-    jml KTestProgram__
+    jml kTestProgram__
 
 ; _sh_uptime_name: .db "uptime\0"
 ; _sh_uptime:
