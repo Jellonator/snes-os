@@ -3,7 +3,7 @@
 .BANK $00 SLOT "ROM"
 .SECTION "RenderInterrupt" FREE
 
-KernelVBlank__:
+kVBlank__:
     sei
     rep #$20 ; 16b A
     pha
@@ -26,7 +26,7 @@ KernelVBlank__:
     ; Deactivate NMI
     lda.l RDNMI
     ; Go to FASTROM section
-    jml KernelVBlank2__
+    jml kVBlank2__
 
 .ENDS
 
@@ -36,11 +36,11 @@ KernelVBlank__:
 __EmptyData__:
     .dw 0
 
-KRenderInit__:
+kRendererInit__:
     rep #$20
-    lda #loword(KUpdatePrinter__)
+    lda #loword(vUpdatePrinter)
     sta.l kRendererAddr
-    lda #bankbyte(KUpdatePrinter__) | $0100
+    lda #bankbyte(vUpdatePrinter) | $0100
     sta.l kRendererAddr+2
     lda #$0000
     sta.l kRendererDP
@@ -49,7 +49,7 @@ KRenderInit__:
     sta.l kRendererDB
     rtl
 
-KernelVBlank2__:
+kVBlank2__:
     ; save context
     .ContextSave_NOA__
     ; change to vblank stack
@@ -74,13 +74,13 @@ KernelVBlank2__:
     ; make waiting processes ready
 @loop:
     ldx #KQID_NMILIST
-    jsl kdequeue
+    jsl queuePop
     cpy #0
     beq @endloop
     lda #PROCESS_READY
     sta.w loword(kProcTabStatus),Y
     ldx #1
-    jsl kenqueue
+    jsl queuePush
     bra @loop
 @endloop:
 ; possibly more efficient method?
@@ -102,7 +102,7 @@ KernelVBlank2__:
 ;         sta.w loword(kQueueTabNext) + KQID_NMILIST
 ;         sta.w loword(kQueueTabPrev) + KQID_NMILIST
 ; @skiplist:
-    jsr KReadInput__
+    jsr kReadInput__
     ; Check if IRQ is disabled
     lda.l kNMITIMEN
     bit #$30
@@ -126,9 +126,9 @@ KernelVBlank2__:
         rti
     +:
     ; switch process
-    jml KernelIRQ2__@entrypoint
+    jml kIRQ2__@entrypoint
 
-KReadInput__:
+kReadInput__:
     ; loop until controller allows itself to be read
     rep #$20 ; 8 bit A
 @read_input_loop:
@@ -160,7 +160,7 @@ KReadInput__:
 ;   source bank    [db] $06
 ;   source address [dw] $04
 ; MUST call with jsl
-KCopyPalette16:
+vCopyPalette16:
     phb
     .ChangeDataBank $00
     rep #$20 ; 16 bit A
@@ -187,7 +187,7 @@ KCopyPalette16:
 ;   source bank    [db] $06
 ;   source address [dw] $04
 ; MUST call with jsl
-KCopyPalette4:
+vCopyPalette4:
     phb
     .ChangeDataBank $00
     rep #$20 ; 16 bit A
@@ -217,7 +217,7 @@ KCopyPalette4:
 ;   source bank    [db] $06
 ;   source address [dw] $04
 ; MUST call with jsl
-KCopyVMem:
+vCopyMem:
     phb
     .ChangeDataBank $00
     rep #$20 ; 16 bit A
@@ -246,7 +246,7 @@ KCopyVMem:
 ;   vram address [dw] $06
 ;   num bytes    [dw] $04
 ; MUST call with jsl
-KClearVMem:
+vClearMem:
     phb
     .ChangeDataBank $00
     rep #$20 ; 16 bit A
@@ -272,7 +272,7 @@ KClearVMem:
 
 ; Set renderer
 ;   address [dl] $04
-KSetRenderer:
+vSetRenderer:
     rep #$20 ; 16b A
     tdc
     sta.l kRendererDP

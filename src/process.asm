@@ -12,14 +12,14 @@
 ;   function   [dl] $04
 ; Returns:
 ;   PID: X [db], = 0 on error
-kcreateprocess:
+procCreate:
     sep #$30 ; 8b AXY
     .DisableInt__ ; [+1; 1]
     phb ; [+1; 2]
     .ChangeDataBank $7E
     ; get next PID
     ldx #KQID_FREELIST
-    jsl kdequeue
+    jsl queuePop
     cpy #0
     bne +
         ldx #0
@@ -115,31 +115,31 @@ kcreateprocess:
     rtl
 
 ; Resume process in X
-kresumeprocess:
+procResume:
     sep #$30 ; 8b AXY
     .DisableInt__
     lda #PROCESS_READY
     sta.l kProcTabStatus,X
     txy
-    jsl kremoveitem
+    jsl queueRemoveItem
     ldx #1 ; enqueue after init process
-    jsl kenqueue
+    jsl queuePush
     .RestoreInt__
     rtl
 
 ; Suspend process in X
-process_suspend:
+procSuspend:
     sep #$30
     .DisableInt__
     lda #PROCESS_WAIT_SEM
     sta.l kProcTabStatus,X
     txy
-    jsl kremoveitem
+    jsl queueRemoveItem
     .RestoreInt__
     rtl
 
 ; wait for NMI signal
-pwaitfornmi:
+procWaitNMI:
     sep #$30
     .DisableInt__
     lda.l kCurrentPID
@@ -147,14 +147,14 @@ pwaitfornmi:
     lda #PROCESS_WAIT_NMI
     sta.l kProcTabStatus,X
     txy
-    jsl kremoveitem
+    jsl queueRemoveItem
     ldx #KQID_NMILIST
-    jsl kenqueue
+    jsl queuePush
     .RestoreInt__
-    jmp kreschedule
+    jmp procReschedule
 
 ; reschedule current process
-kreschedule:
+procReschedule:
     brk
     nop
     rtl
@@ -177,7 +177,7 @@ kreschedule:
 ;     rtl
 
 ; Kill process with ID in X
-kkill:
+procKill:
     .INDEX 8
     sep #$20 ; 8b A
     phb
@@ -187,10 +187,10 @@ kkill:
     stz.w loword(kProcTabStatus),X
     ; remove process from queues
     txy
-    jsl kremoveitem
+    jsl queueRemoveItem
     ; add to free list
     ldx #KQID_FREELIST
-    jsl kenqueue
+    jsl queuePush
     tyx
     ; if current process is renderer, then return renderer to OS
     sep #$30 ; 8b AXY
@@ -198,7 +198,7 @@ kkill:
     bne @skipremoverenderer
         phx
         php
-        jsl KRenderInit__
+        jsl kRendererInit__
         plp
         plx
     @skipremoverenderer:
@@ -212,7 +212,7 @@ kkill:
         lda.w memblock_t.mPID,X
         cmp $01,s
         bne +
-            jsl kmemfreeblock
+            jsl memFreeBlock__
         +:
         ldy.w memblock_t.mnext,X
         tyx
@@ -225,11 +225,11 @@ kkill:
     plb
     rtl
 
-exit:
+procExit:
     sep #$30
     lda.l kCurrentPID
     tax
-    jsl kkill
-    jsl kreschedule
+    jsl procKill
+    jsl procReschedule
 
 .ENDS

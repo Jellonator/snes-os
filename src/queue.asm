@@ -4,7 +4,7 @@
 .SECTION "KQueue" FREE
 
 ; clear queue X
-kclearqueue:
+queueClear:
     sep #$30
     txa
     sta.l kQueueTabNext,X ; X->next = X
@@ -12,7 +12,7 @@ kclearqueue:
     rtl
 
 ; free queue X
-kdelqueue:
+queueFree:
     sep #$30
     lda #0
     sta.l kQueueTabNext,X
@@ -20,7 +20,7 @@ kdelqueue:
     rtl
 
 ; Insert process Y to the tail of queue X
-kenqueue:
+queuePush:
     sep #$30
     phb
     .ChangeDataBank $7E
@@ -42,7 +42,7 @@ kenqueue:
 
 ; Remove first process in queue X
 ; returns PID8 in Y
-kdequeue:
+queuePop:
     sep #$30
     phb
     .ChangeDataBank $7E
@@ -76,7 +76,7 @@ kdequeue:
     rtl
 
 ; remove PID Y from any queues it may be in
-kremoveitem:
+queueRemoveItem:
     sep #$30
     phb
     .ChangeDataBank $7E

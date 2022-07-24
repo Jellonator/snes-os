@@ -2,7 +2,7 @@
 
 .BANK $01 SLOT "ROM"
 .SECTION "Snes_Init" SEMIFREE
-KernelResetRegisters__:
+kResetRegisters__:
 	sep #$30  ; X,Y,A are 8 bit numbers
 	lda #$8F  ; screen off, full brightness
 	sta $2100 ; brightness + screen enable register 
@@ -92,26 +92,26 @@ KernelResetRegisters__:
 .ends
 
 .SNESNATIVEVECTOR
-    COP EmptyHandler
-    BRK KernelBrk__
-    ABORT EmptyHandler
-    NMI KernelVBlank__
-    IRQ KernelIRQ__
+    COP kEmptyHandler__
+    BRK kBrk__
+    ABORT kEmptyHandler__
+    NMI kVBlank__
+    IRQ kIRQ__
 .ENDNATIVEVECTOR
 
 .SNESEMUVECTOR
-    COP EmptyHandler
-    ABORT EmptyHandler
-    NMI EmptyHandler
-    RESET KernelInitialize__
-    IRQBRK EmptyHandler
+    COP kEmptyHandler__
+    ABORT kEmptyHandler__
+    NMI kEmptyHandler__
+    RESET kInitialize__
+    IRQBRK kEmptyHandler__
 .ENDEMUVECTOR
 
 .BANK $00 SLOT "ROM"
 .ORG $0000
 .SECTION "EmptyHandler" SEMIFREE
 
-EmptyHandler:
+kEmptyHandler__:
     rti
 
 .ENDS

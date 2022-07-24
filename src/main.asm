@@ -9,7 +9,7 @@
 .ORG $0000
 .SECTION "KVectors" FORCE
 
-KernelInitialize__:
+kInitialize__:
     ; Disabled interrupts
     sei
     ; Change to native mode
@@ -21,15 +21,15 @@ KernelInitialize__:
     ldx #$003F
     txs
     ; Initialize registers
-    jsl KernelResetRegisters__
+    jsl kResetRegisters__
     lda #$01
     sta.l MEMSEL ; use FASTROM
-    jml KernelInitialize2__
+    jml kInitialize2__
 
 ; Called by SNES' IRQ timer.
 ; In charge of process switching.
-KernelBrk__:
-KernelIRQ__:
+kBrk__:
+kIRQ__:
     sei
     rep #$20 ; 16b A
     pha
@@ -38,14 +38,14 @@ KernelIRQ__:
     lda #%00000001
     sta.l NMITIMEN
     lda.l TIMEUP
-    jml KernelIRQ2__ ; go to FASTROM section
+    jml kIRQ2__ ; go to FASTROM section
 
 .ENDS
 
 .BANK $01 SLOT "ROM"
 .SECTION "MainCode" FREE
 
-KernelIRQ2__:
+kIRQ2__:
 ; save context
     .ContextSave_NOA__
 ; begin
@@ -81,7 +81,7 @@ KernelIRQ2__:
     rti
 
 _init_name: .db "init\0"
-KernelInitialize2__:
+kInitialize2__:
     ; Disable rendering temporarily
     sep #$30 ; 8b A
     lda #%10001111
@@ -92,7 +92,7 @@ KernelInitialize2__:
     sta.l NMITIMEN
 ; clear lists
     ldx #KQID_NMILIST
-    jsl kclearqueue
+    jsl queueClear
 ; clear data for all processes (1+)
     .ChangeDataBank $7E
     sep #$30 ; 8b AXY
@@ -134,10 +134,10 @@ KernelInitialize2__:
     sta.w loword(kProcTabNamePtr + 2)
     sep #$20
 ; render initialization
-    jsl KRenderInit__
-    jsl KInitPrinter__
+    jsl kRendererInit__
+    jsl vPrinterInit
 ; mem init
-    jsl KMemInit__
+    jsl kMemInit__
     rep #$20
     stz.w loword(kJoy1Held)
     stz.w loword(kJoy1Press)
@@ -161,9 +161,7 @@ KernelInitialize2__:
     ; .CreateReadyProcess KTestProgram__, 64, 0
     .CreateReadyProcess os_shell, 64, 0, os_shell@n
 ; Finally, just become an infinite loop as process 1
-    jmp KernelLoop__
-KernelLoop__:
-    jsl kreschedule
-    jmp KernelLoop__
+    - jsl procReschedule
+    jmp -
 
 .ENDS

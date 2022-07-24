@@ -37,12 +37,12 @@ semwait:
         ; insert PID into queue
         lda.w loword(kCurrentPID)
         tay
-        jsl kenqueue
+        jsl queuePush
         ; suspend
         tyx
-        jsl process_suspend
+        jsl procSuspend
         .RestoreInt__
-        jsl kreschedule
+        jsl procReschedule
         ; resume
         plb
         rtl
@@ -61,9 +61,9 @@ semsignal:
 ; begin
     lda.w loword(kSemTabCount-KQID_SEM),X
     bcs +
-        jsl kdequeue
+        jsl queuePop
         tyx
-        jsl kresumeprocess
+        jsl procResume
     +:
     inc.w loword(kSemTabCount-KQID_SEM),X
 ; kSemTabCount
@@ -78,16 +78,16 @@ semdelete:
     sep #$30
 ; kill waiting processes
 @looprm:
-    jsl kdequeue
+    jsl queuePop
     cpy #0
     beq @endrm
     phx
     tyx
-    jsl kkill
+    jsl procKill
     plx
     bra @looprm
 @endrm:
-    jsl kdelqueue
+    jsl queueFree
     rtl
 
 .ENDS

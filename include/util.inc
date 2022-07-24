@@ -208,53 +208,6 @@
     .dw (B << 10) | (G << 5) | R
 .ENDM
 
-; ; Remove the process X from the given list
-; .MACRO .ListRemoveX ARGS lsbase
-;     phx
-;     ; if X is only member of `lsbase`, then set `lsbase` to `NULL`
-;     lda.w loword(kProcessPrevIdTable),X ; A = X->prev
-;     cmp $01,S ; (cmp X->prev to X)
-;     bne @@@@@\.\@continue
-;         stz.w loword(lsbase) ; ls = NULL
-;         bra @@@@@\.\@end
-; @@@@@\.\@continue:
-;     ; otherwise, remove X from rest of list
-;     ldy.w loword(kProcessNextIdTable),X ;   Y = X->next
-;     sta.w loword(kProcessPrevIdTable),Y ; X->next->prev = X->prev
-;     ldy.w loword(kProcessPrevIdTable),X ;   Y = X->prev
-;     lda.w loword(kProcessNextIdTable),X ;   A = X->next
-;     sta.w loword(kProcessNextIdTable),Y ; X->prev->next = X->next
-;     ; if X is first member of `lsbase`, then change first member to `X->next`
-;     cpx.w loword(lsbase)
-;     bne @@@@@\.\@end
-;         sta.w loword(lsbase) ; ls = X->next
-; @@@@@\.\@end:
-;     plx
-; .ENDM
-
-; .MACRO .ListAddX ARGS lsbase
-;     ; if `lsbase` is NULL, then have X point to itself, and set `lsbase` to X
-;     ldy.w loword(lsbase) ; Y = lsbase
-;     bne @@@@@\.\@continue
-;         sty.w loword(lsbase)
-;         tya
-;         sta.w loword(kProcessNextIdTable),X
-;         sta.w loword(kProcessPrevIdTable),X
-;         bra @@@@@\.\@end
-; @@@@@\.\@continue:
-;     ; otherwise, add X to end of list
-;     tya
-;     sta.w loword(kProcessNextIdTable),X ; X->next = lsbase
-;     lda.w loword(kProcessPrevIdTable),Y ;   A = lsbase->prev
-;     sta.w loword(kProcessPrevIdTable),X ; X->prev = lsbase->prev
-;     pha
-;     txa                                 ;   A = X
-;     sta.w loword(kProcessPrevIdTable),Y ; lsbase->prev = X
-;     ply                                 ;   Y = lsbase->prev
-;     sta.w loword(kProcessNextIdTable),Y ; lsbase->prev->next = X
-; @@@@@\.\@end:
-; .ENDM
-
 .MACRO .BranchIfDigit ARGS target
     cmp #'0'
     bcc @@@@@\.\@
@@ -336,8 +289,8 @@
     lda #bankbyte(proc)
     pha
     pea loword(proc)
-    jsl kcreateprocess
-    jsl kresumeprocess
+    jsl procCreate
+    jsl procResume
     rep #$20 ; 16b A
     pla
     pla

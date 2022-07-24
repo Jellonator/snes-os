@@ -8,7 +8,7 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KMem" FREE
 
-KMemInit__:
+kMemInit__:
     rep #$20
     lda #$0000
     sta.l kMemList + memblock_t.mnext
@@ -24,7 +24,7 @@ KMemInit__:
 ; Returns:
 ;   X: the pointer (null if error)
 ;   capacity [dw]: the number of bytes in the block
-memalloc:
+memAlloc:
 ; disable interrupts
     sep #$20 ; 8b A
     .DisableInt__ ; +1 (1)
@@ -137,7 +137,7 @@ memalloc:
     rtl
 
 ; Free memory block X
-kmemfreeblock:
+memFreeBlock__:
 ; disable interrupts
     sep #$20 ; 8b A
     .DisableInt__ ; +1 (1)
@@ -201,18 +201,18 @@ kmemfreeblock:
     rtl
 
 ; free memory at X
-memfree:
+memFree:
     rep #$30 ; 16b AXY
     txa
     sec
     sbc #MEMBLOCK_SIZE
     tax
-    jmp kmemfreeblock
+    jmp memFreeBlock__
 
 ; Memory change owner
 ; Change owner of memory in X to PID A
 ; A must be 8b and X must be 16b
-memchown:
+memChangeOwner:
     .INDEX 16
     .ACCU 8
     dex
@@ -221,7 +221,7 @@ memchown:
     rtl
 
 ; debug memory print
-KPrintMemoryDump__:
+memPrintDump:
 ; disable interrupts
     sep #$20 ; 8b A
     .DisableInt__ ; +1 (1)
@@ -239,7 +239,7 @@ KPrintMemoryDump__:
     lda.w memblock_t.mPID,Y
     phy
     .ChangeDataBank $7E
-    jsl writeptrb
+    jsl writePtr8
     ; write space
     lda #' '
     sta.w $0000,X
@@ -249,7 +249,7 @@ KPrintMemoryDump__:
     lda $01,s
     clc
     adc #MEMBLOCK_SIZE
-    jsl writeptrw
+    jsl writePtr16
     ; write colon
     pha
     sep #$20 ; 8b A
@@ -269,7 +269,7 @@ KPrintMemoryDump__:
     lda.w memblock_t.mnext,Y
     dec A
     .ChangeDataBank $7E
-    jsl writeptrw
+    jsl writePtr16
     ; write end
     ; sep #$20
     lda #'\n'
@@ -278,7 +278,7 @@ KPrintMemoryDump__:
     ; stz $0000,X
     ; write to print
     ldy #loword(kTempBuffer)
-    jsl kputstring
+    jsl kPutString
     .ChangeDataBank $7F
     rep #$20 ; 16b A
     ply
