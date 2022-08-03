@@ -33,7 +33,7 @@ kVBlank__:
 .BANK $01 SLOT "ROM"
 .SECTION "RenderCode" FREE
 
-__EmptyData__:
+vEmptyData__:
     .dw 0
 
 kRendererInit__:
@@ -252,12 +252,12 @@ vClearMem:
     rep #$20 ; 16 bit A
     lda 1+$04,s
     sta DMA0_SIZE ; number of bytes
-    lda #loword(__EmptyData__)
+    lda #loword(vEmptyData__)
     sta DMA0_SRCL ; source address
     lda 1+$06,s
     sta $2116 ; VRAM address
     sep #$20 ; 8 bit A
-    lda #bankbyte(__EmptyData__)
+    lda #bankbyte(vEmptyData__)
     sta DMA0_SRCH ; source bank
     lda #$80
     sta $2115 ; VRAM address increment flags

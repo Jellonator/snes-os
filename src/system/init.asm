@@ -36,6 +36,9 @@ kInitialize2__:
     sei
     lda #$01
     sta.l NMITIMEN
+; clear key blocks of memory
+    .ClearWRam kQueueTabNext KQUEUE_NUM*2
+    .ClearWRam kSemTabCount KSEM_NUM
 ; clear lists
     ldx #KQID_NMILIST
     jsl queueClear

@@ -11,7 +11,6 @@ PY       := python3
 SOURCES  := lib/lib.asm\
 			shell/echo.asm\
 			shell/ps.asm\
-			shell/test.asm\
 			shell/shell.asm\
 			system/init.asm\
 			system/main.asm\
@@ -20,7 +19,9 @@ SOURCES  := lib/lib.asm\
 			system/process.asm\
 			system/queue.asm\
 			system/render.asm\
-			system/sem.asm
+			system/sem.asm\
+			test/prodcons.asm\
+			test/test.asm
 
 OBJECTS  := $(SOURCES:%.asm=$(OBJDIR)/%.obj)
 PALETTES := $(wildcard assets/palettes/*.hex)

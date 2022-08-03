@@ -2,7 +2,6 @@
 obj/lib/lib.obj
 obj/shell/echo.obj
 obj/shell/ps.obj
-obj/shell/test.obj
 obj/shell/shell.obj
 obj/system/init.obj
 obj/system/main.obj
@@ -12,3 +11,5 @@ obj/system/process.obj
 obj/system/queue.obj
 obj/system/render.obj
 obj/system/sem.obj
+obj/test/prodcons.obj
+obj/test/test.obj
