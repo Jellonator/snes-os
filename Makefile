@@ -1,7 +1,7 @@
 OBJDIR   := obj
 BINDIR   := bin
 SRCDIR   := src
-BINFILE  := Test.sfc
+BINFILE  := snes-os.sfc
 AC       := wla-65816
 ALINK    := wlalink
 AFLAGS   := -I include
