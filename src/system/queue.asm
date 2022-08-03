@@ -58,18 +58,7 @@ queuePop:
         rtl
 @notempty:
     tay ; Y = pid
-    lda.w loword(kQueueTabNext),Y ; A = next
-    sta.b $02
-    lda.w loword(kQueueTabPrev),Y ; A = prev
-    ldy.b $02 ; Y = next
-    sta.w loword(kQueueTabPrev),Y
-    tay ; Y = prev
-    lda.b $02 ; A = next
-    sta.w loword(kQueueTabNext),Y
-    ldy.b $00 ; Y = pid
-    lda #0
-    sta.w loword(kQueueTabNext),Y
-    sta.w loword(kQueueTabPrev),Y
+    jsl queueRemoveItem
 ; end
     .RestoreInt__
     plb
@@ -87,12 +76,12 @@ queueRemoveItem:
     sty.b $00
     sta.b $02
     lda.w loword(kQueueTabPrev),Y ; A = prev
-    ldy.b $02 ; Y = next
-    sta.w loword(kQueueTabPrev),Y
-    tay ; Y = prev
-    lda.b $02 ; A = next
-    sta.w loword(kQueueTabNext),Y
-    ldy.b $00 ; Y = pid
+    ldy.b $02                     ; Y = next
+    sta.w loword(kQueueTabPrev),Y ; qtPrev[next] = prev
+    tay                           ; Y = prev
+    lda.b $02                     ; A = next
+    sta.w loword(kQueueTabNext),Y ; qtNext[prev] = next
+    ldy.b $00                     ; Y = pid
     lda #0
     sta.w loword(kQueueTabNext),Y
     sta.w loword(kQueueTabPrev),Y

@@ -70,6 +70,7 @@ ShellCommandList:
     .DefCommand _sh_meminfo
     .DefCommand shPs
     .DefCommand shTest
+    .DefCommand shTestProdcons
     .dsl 2, $000000
 
 ; tile data addresses; granularity is (X % $0400) words
@@ -862,11 +863,13 @@ _shell_update:
 
 _snow_logo:
     .db "/--------------------------" '\'
+    .db "|                          " '|'
     .db "| /--- /\  | \| |/ |   |   " '|'
     .db "| |    | \ |  \ /  |   |   " '|'
     .db "| \--\ | | | >-*-< |   |   " '|'
     .db "|    | | \ |  / \  | ^ |   " '|'
     .db "| ---/ |  \/ /| |\ \/ \/OS " '|'
+    .db "|                          " '|'
     .db "\--------------------------" '/'
     .db "type 'help' for command list\0"
 

@@ -93,12 +93,12 @@
     rep #$20 ; 16 bit A
     lda #NBYTES
     sta DMA0_SIZE
-    lda #loword(EmptyData)
+    lda #loword(vEmptyData__)
     sta DMA0_SRCL
     lda #loword(ADDRL)
     sta WMADDL
     sep #$20 ; 8 bit A
-    lda #bankbyte(EmptyData)
+    lda #bankbyte(vEmptyData__)
     sta DMA0_SRCH
     lda #bankbyte(ADDRL)
     sta WMADDH
@@ -283,12 +283,8 @@
     sep #$20
     pea args
     pea stack
-    lda #bankbyte(n)
-    pha
-    pea loword(n)
-    lda #bankbyte(proc)
-    pha
-    pea loword(proc)
+    .PEAL n
+    .PEAL proc
     jsl procCreate
     jsl procResume
     rep #$20 ; 16b A
@@ -339,4 +335,26 @@
         adc #NUM
         tcs
     .ENDIF
+.ENDM
+
+.MACRO .PrintStringLabel ARGS label
+    phb
+    .ChangeDataBank bankbyte(label)
+    rep #$10
+    ldy #loword(label)
+    jsl kPutString
+    plb
+.ENDM
+
+.MACRO .PrintStringLiteral ARGS str
+    phb
+    phk
+    plb
+    rep #$10
+    ldy #@@@@@\.\@str
+    jsl kPutString
+    plb
+    bra @@@@@\.\@lbl
+    @@@@@\.\@str: .db str, "\0"
+    @@@@@\.\@lbl:
 .ENDM

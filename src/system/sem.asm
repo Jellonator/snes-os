@@ -5,7 +5,7 @@
 
 ; create a semaphore, returns SID8 in X
 ; initializes semaphore to A
-semcreate:
+semCreate:
     sep #$30 ; 8b AXY
     pha
     .DisableInt__
@@ -24,23 +24,26 @@ semcreate:
     sta.l kSemTabCount-KQID_SEM,X
     rtl
 
-; wait for semaphore in X
-semwait:
+; wait for sid8 X
+semWait:
     sep #$30
     phb
     .ChangeDataBank $7E
     .DisableInt__
 ; begin
     dec.w loword(kSemTabCount-KQID_SEM),X
-    bpl +
+    bpl + ; branch if (--count >= 0)
     ; --count < 0, block
+        phx
         ; insert PID into queue
-        lda.w loword(kCurrentPID)
-        tay
+        lda #PROCESS_WAIT_SEM
+        ldy.w loword(kCurrentPID)
+        sta.w loword(kProcTabStatus),Y
+        jsl queueRemoveItem
+        plx
         jsl queuePush
         ; suspend
-        tyx
-        jsl procSuspend
+        sep #$30
         .RestoreInt__
         jsl procReschedule
         ; resume
@@ -53,17 +56,21 @@ semwait:
     plb
     rtl
 
-semsignal:
+; Signals sid8 X
+semSignal:
     sep #$30
     phb
     .ChangeDataBank $7E
     .DisableInt__
 ; begin
     lda.w loword(kSemTabCount-KQID_SEM),X
-    bcs +
+    bpl + ; branch if (count >= 0)
+        phx
         jsl queuePop
         tyx
         jsl procResume
+        sep #$30
+        plx
     +:
     inc.w loword(kSemTabCount-KQID_SEM),X
 ; kSemTabCount
@@ -74,7 +81,7 @@ semsignal:
     rtl
 
 ; Frees the semaphore in X
-semdelete:
+semDelete:
     sep #$30
 ; kill waiting processes
 @looprm:

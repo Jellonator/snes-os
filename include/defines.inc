@@ -51,4 +51,4 @@
 .ENUMID KQID_FREELIST ; List used for inactive processes
 .ENUMID KQID_NMILIST ; List used for processing waiting for NMI
 .ENUMID KQID_FIRST ; First freely allocatable QID
-.DEFINE KQID_READYLIST ; List used for ready processes, also the init process
+.DEFINE KQID_READYLIST 1 ; List used for ready processes, also the init process

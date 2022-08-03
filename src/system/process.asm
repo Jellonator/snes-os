@@ -131,7 +131,7 @@ procResume:
 procSuspend:
     sep #$30
     .DisableInt__
-    lda #PROCESS_WAIT_SEM
+    lda #PROCESS_SUSPEND
     sta.l kProcTabStatus,X
     txy
     jsl queueRemoveItem
@@ -159,58 +159,41 @@ procReschedule:
     nop
     rtl
 
-; ; Set process X's state to A
-; ; A and X should be 8b
-; ksetprocessstate:
-;     sta.l kProcessStatusTable,X 
-;     rtl
-
-; ; Set current process's state to A
-; ; A should be 8b
-; ksetcurrentprocessstate:
-;     sep #$30
-;     pha
-;     lda.l kCurrentPID
-;     tax
-;     pla
-;     sta.l kProcessStatusTable,X
-;     rtl
-
 ; Kill process with ID in X
 procKill:
     .INDEX 8
     sep #$20 ; 8b A
+    stx.b $04
     phb
     .ChangeDataBank $7E
     .DisableInt__
     ; set status to PROCESS_NULL
     stz.w loword(kProcTabStatus),X
     ; remove process from queues
-    txy
+    ldy.b $04
     jsl queueRemoveItem
     ; add to free list
     ldx #KQID_FREELIST
+    ldy.b $04
     jsl queuePush
-    tyx
     ; if current process is renderer, then return renderer to OS
     sep #$30 ; 8b AXY
+    ldx.b $04
     cpx.w loword(kRendererProcess)
     bne @skipremoverenderer
-        phx
         php
         jsl kRendererInit__
         plp
-        plx
+        ldx.b $04
     @skipremoverenderer:
 ; free memory used by process
-    phx ; push ID
     rep #$10 ; 16b XY
     .ChangeDataBank $7F
     ldx #$0000
     @memloop:
         sep #$20 ; 8b A
         lda.w memblock_t.mPID,X
-        cmp $01,s
+        cmp.b $04
         bne +
             jsl memFreeBlock__
         +:
@@ -220,7 +203,7 @@ procKill:
         bne @memloop
     .ChangeDataBank $7E
     sep #$30 ; 8b AXY
-    plx ; pull ID
+    ldx.b $04
     .RestoreInt__
     plb
     rtl
