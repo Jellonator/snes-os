@@ -1,4 +1,5 @@
 [objects]
+obj/fs/mem.obj
 obj/lib/lib.obj
 obj/shell/echo.obj
 obj/shell/ps.obj
