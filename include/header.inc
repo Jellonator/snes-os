@@ -27,7 +27,7 @@
     LOROM
 
     CARTRIDGETYPE $00 ; $00 = ROM only
-    SRAMSIZE $00      ; No SRAM
+    SRAMSIZE $03      ; 64KB
     COUNTRY $01       ; $01 = U.S.
     LICENSEECODE $00
     VERSION $00

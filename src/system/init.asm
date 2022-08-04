@@ -91,8 +91,15 @@ kInitialize2__:
     stz.w loword(kJoy1Held)
     stz.w loword(kJoy1Press)
     stz.w loword(kJoy1Raw)
-; re-enable IRQ/NMI
+; filesystem init
+    pea $F000 ; upper 16b of starting address
+    pea 2*$0100 + 128 ; #banks + #pages
+    jsl kfsMemInit
     rep #$20
+    pla
+    pla
+; re-enable IRQ/NMI
+    ; rep #$20
     lda #128 ; choose close to center of screen to
     ; minimize the chance of overlap with NMI
     sta.l HTIME
