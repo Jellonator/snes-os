@@ -2,6 +2,7 @@
 
 .DEFINE FS_INODE_TYPE_FILE 1
 .DEFINE FS_INODE_TYPE_DIR 2
+.DEFINE FS_INODE_TYPE_MOUNT 3
 
 .DEFINE FS_MAX_FILENAME_LEN 14
 
@@ -10,6 +11,9 @@
 .DEFINE FS_DEVICE_ROM 2 ; ROM device
 
 ; in-memory device (SRAM/ROM/RAM) header
+; header: 32B
+; root dir: 160B
+; mask: 64B
 .STRUCT fs_mem_header_t ; SIZE 256
     magicnum ds 4 ; magic number for filesystem
     device db
@@ -18,7 +22,8 @@
     nBlocksPerBank dw ; number of blocks in each bank
     nBlocks dw ; = nBanks * nBlocksPerBank
     nFreeMaskBytes dw ; number of bytes used for free mask (up to 8K)
-    nMaskBlocks dw ; number of blocks used for mask. If 0, then mask is entirely contained in filesystem_t
+    nFreeMaskBlocks dw ; number of excess blocks used for mask.
+                   ; If 0, then mask is entirely contained in filesystem_t
     firstInodeBlock dw ; First inode block
     nInodeBlocks dw ; number of inode blocks
     nUsedInodeBlocks dw ; number of used inodes
@@ -26,9 +31,11 @@
     nDataBlocks dw ; number of data blocks
     nUsedDataBLocks dw ; number of used data blocks
 .ENDST
-.define fs_mem_header_t.rootDir 64 ; 128 bytes for root directory info
+.define fs_mem_header_t.rootDir 32 ; 160 bytes for root directory info
+; 8 directory entries
+
+.define fs_mem_header_t.maskData 192 ; 64 bytes for mask (only 32b needed per entire 64K bank)
 ; theoretically need up to 32 blocks of 256 bytes to represent entire 24bit addressable space
-.define fs_mem_header_t.maskData 128 ; 64 bytes for mask (only 32b needed per entire 64K bank)
 
 ; directory entry
 .STRUCT fs_mem_direntry_t ; SIZE 16

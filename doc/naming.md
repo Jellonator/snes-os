@@ -11,6 +11,8 @@ Prefixes:
 * proc - process management
 * mem - memory management
 * sh - shell functions
+* kfs - internal kernal filesystem functions
+* fs - public filesystem functions
 
 Standard library functions do not have a set prefix
 
