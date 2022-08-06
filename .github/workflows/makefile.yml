@@ -21,6 +21,9 @@ jobs:
         python-version: 3.8
         cache: pip
     
+    - name: Install PIL
+      run: pip install pillow
+    
     - name: Setup WLA-DX
       run: |
         git clone https://github.com/vhelin/wla-dx # Clone the repository
