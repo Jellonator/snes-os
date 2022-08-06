@@ -19,6 +19,7 @@ jobs:
       with:
         # Version range or exact version of Python or PyPy to use, using SemVer's version range syntax. Reads from .python-version if unset.
         python-version: 3.8
+        cache: pip
     
     - name: Setup WLA-DX
       run: |
