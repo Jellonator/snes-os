@@ -2,21 +2,30 @@
 <html>
 	<head>
 		<meta charset="UTF-8">
-		<title>Example webretro embed</title>
+		<title>SNOW OS</title>
 		<style>
 			#webretro-container {
-				width: 800px;
-				height: 600px;
+				width: 1024px;
+				height: 960px;
 			}
 		</style>
 	</head>
 	<body>
-		<h1>Example webretro embed</h1>
 		<div id="webretro-container"></div>
-		<br>
 		<input type="button" id="fullscreen" value="Fullscreen">
-		<br>
-		<br>
+		<div>
+			<h3>Default controls</h3>
+			<ul>
+				<li>Move cursor: Arrow Keys</li>
+				<li>Type character: H</li>
+				<li>backspace: G</li>
+				<li>Space: T</li>
+				<li>Enter line: Enter</li>
+			</ul>
+			<p>
+				This page is made possible with <a href="https://github.com/BinBashBanana/webretro">webRetro</a>.
+			</p>
+		</div>
 		
 		<script>
       function webretroEmbed(node, path, queries) {
