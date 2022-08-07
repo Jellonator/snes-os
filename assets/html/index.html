@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Example webretro embed</title>
+		<style>
+			#webretro-container {
+				width: 800px;
+				height: 600px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Example webretro embed</h1>
+		<div id="webretro-container"></div>
+		<br>
+		<input type="button" id="fullscreen" value="Fullscreen">
+		<br>
+		<br>
+		
+		<script>
+      function webretroEmbed(node, path, queries) {
+        var frame = document.createElement("iframe");
+        frame.style = "border: none; display: block; width: 100%; height: 100%;";
+
+        // change rom path to absolute if it isn't already
+        if (queries.rom) {
+          var link = document.createElement("a");
+          link.href = queries.rom;
+        }
+
+        frame.src = path + "?" + Object.entries(queries).map(i => i.map(i => i && encodeURIComponent(i))).map(i => i[1] ? i.join("=") : i[0]).join("&");
+        node.appendChild(frame);
+
+        return frame;
+      }
+			var frame = webretroEmbed(document.getElementById("webretro-container"), ".", {system: "snes", rom: "snes-os.sfc"});
+			document.getElementById("fullscreen").onclick = function() {
+				frame.requestFullscreen();
+			};
+		</script>
+	</body>
+</html>
