@@ -1,18 +1,36 @@
 name: Makefile CI
 
 on:
+  # Runs on pushes targeting the default branch
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
-  build:
+  desploy:
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
     
     - name: Setup Python
       uses: actions/setup-python@v4.2.0
@@ -30,9 +48,27 @@ jobs:
         cd wla-dx
         mkdir build && cd build # Create building directory
         cmake .. # Generate build system
-        cmake --build . --config Release # Build it
+        cmake --build . --config Release -j$(getconf _NPROCESSORS_ONLN) # Build it
         cmake -P cmake_install.cmake
         cd ../..
       
-    - name: Build
-      run: make
+    - name: Build OS
+      run: make -j$(getconf _NPROCESSORS_ONLN)
+      
+    - name: Setup Pages
+      uses: actions/configure-pages@v1
+    
+    - name: Create artifact
+      run: |
+        mkdir out
+        cp bin/snes-os.sfc ./out
+        cp assets/html/* ./out
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        # Upload entire repository
+        path: 'out'
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@main
