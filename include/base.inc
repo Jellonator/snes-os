@@ -3,5 +3,5 @@
 .include "structs.inc"
 .include "util.inc"
 .include "registers.inc"
-.include "ramlayout.inc"
 .include "fs.inc"
+.include "ramlayout.inc"
