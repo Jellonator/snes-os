@@ -1,4 +1,4 @@
-; Maximum of A register and memory location, signed
+; Maximum of A register and value, signed
 .MACRO .AMAX
     cmp \1
     bpl @@@@@\.\@
@@ -6,7 +6,7 @@
 @@@@@\.\@:
 .ENDM
 
-; Minimum of A register and memory location, signed
+; Minimum of A register and value, signed
 .MACRO .AMIN
     cmp \1
     bmi @@@@@\.\@
@@ -14,51 +14,21 @@
 @@@@@\.\@:
 .ENDM
 
-; Maximum of A register and immediate value, signed
-.MACRO .AMAXI
-    cmp #\1
-    bpl @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
-.ENDM
-
-; Minimum of A register and immediate value, signed
-.MACRO .AMINI
-    cmp #\1
-    bmi @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
-.ENDM
-
-; Maximum of A register and memory location, unsigned
+; Maximum of A register and value, unsigned
 .MACRO .AMAXU
-    cmp \1
+    .IF !( \3 )
+        cmp \1
+    .ENDIF
     bcs @@@@@\.\@
     lda \1
 @@@@@\.\@:
 .ENDM
 
-; Minimum of A register and memory location, unsigned
+; Minimum of A register and value, unsigned
 .MACRO .AMINU
     cmp \1
     bcc @@@@@\.\@
     lda \1
-@@@@@\.\@:
-.ENDM
-
-; Maximum of A register and immediate value, unsigned
-.MACRO .AMAXUI
-    cmp #\1
-    bcs @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
-.ENDM
-
-; Minimum of A register and immediate value, unsigned
-.MACRO .AMINUI
-    cmp #\1
-    bcc @@@@@\.\@
-    lda #\1
 @@@@@\.\@:
 .ENDM
 
@@ -116,12 +86,12 @@
     rep #$20 ; 16 bit A
     lda #NBYTES
     sta.b <DMA0_SIZE
-    lda #loword(EmptyData)
+    lda #loword(vEmptyData__)
     sta.b <DMA0_SRCL
     lda #loword(ADDRL)
     sta.l WMADDL
     sep #$20 ; 8 bit A
-    lda #bankbyte(EmptyData)
+    lda #bankbyte(vEmptyData__)
     sta.b <DMA0_SRCH
     lda #bankbyte(ADDRL)
     sta.l WMADDH

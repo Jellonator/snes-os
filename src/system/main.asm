@@ -1,10 +1,5 @@
 .include "base.inc"
 
-; info during compile
-.PRINT "Kernel memory end: $", HEX _kMemoryEnd, "\n"
-.PRINT "Kernel memory used: $", HEX KERNEL_MEMORY_USED, "\n"
-.PRINT "Kernel pages used: $", HEX KERNEL_PAGES_USED, "\n"
-
 .BANK $00 SLOT "ROM"
 .ORG $0000
 .SECTION "KMainVectors" FORCE
