@@ -92,6 +92,7 @@ kInitialize2__:
     stz.w loword(kJoy1Press)
     stz.w loword(kJoy1Raw)
 ; filesystem init
+    jsl kfsInit__
     ; pea $F000 ; upper 16b of starting address
     ; pea 2*$0100 + 128 ; #banks + #pages
     ; jsl kfsMemInit
