@@ -1,6 +1,7 @@
 [objects]
 obj/fs/core.obj
 obj/fs/mem.obj
+obj/fs/path.obj
 obj/lib/lib.obj
 obj/shell/echo.obj
 obj/shell/ps.obj
