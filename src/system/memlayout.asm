@@ -44,7 +44,10 @@
     kJoy1Press dw
     kJoy1Held dw
 ; filesystem
-    kfsDeviceTypeTable dsw FS_DEVICE_TYPE_MAX_COUNT
+    ; list of available device templates
+    kfsDeviceTemplateTable dsl FS_DEVICE_TYPE_MAX_COUNT
+    kfsDeviceInstanceTable INSTANCEOF fs_device_instance_t FS_DEVICE_INSTANCE_MAX_COUNT
+    kfsFileHandleTable INSTANCEOF fs_handle_instance_t FS_OFT_SIZE
     ; kFsRootDevice INSTANCEOF fs_device_descriptor_t
     ; kFsFileTable INSTANCEOF fs_filetable_t FS_OFT_SIZE
 ; end

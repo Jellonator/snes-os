@@ -3,6 +3,11 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KFSMem" FREE
 
+.DSTRUCT KFS_DeviceType_Mem INSTANCEOF fs_device_template_t VALUES
+    fsname .db "MEM\0"
+    
+.ENDST
+
 ; _magicNum:
 ;     .db "FMD9"
 

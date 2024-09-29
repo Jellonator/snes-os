@@ -10,6 +10,7 @@ PY       := python3
 
 SOURCES  := fs/core.asm\
 			fs/mem.asm\
+			fs/path.asm\
 			lib/lib.asm\
 			shell/echo.asm\
 			shell/ps.asm\

@@ -10,22 +10,38 @@
 .DEFINE FS_DEVICE_SRAM 1 ; SRAM device
 .DEFINE FS_DEVICE_ROM 2 ; ROM device
 
-.DEFINE FS_TABLE_CLOSED 0
-.DEFINE FS_TABLE_OPEN 1
-.DEFINE FS_TABLE_READ $80
-.DEFINE FS_TABLE_WRITE $40
-.DEFINE FS_TABLE_RDWR $C0
+.DEFINE FS_TABLE_FLAG_OPEN $01
+
+.DEFINE FS_TABLE_MODE_READ $80
+.DEFINE FS_TABLE_MODE_WRITE $40
+.DEFINE FS_TABLE_MODE_RDWR $C0
 
 .DEFINE FS_OFT_SIZE 64
-
 .DEFINE FS_DEVICE_TYPE_MAX_COUNT 8
+.DEFINE FS_DEVICE_INSTANCE_MAX_COUNT 8
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;         FILESYSTEM DEFINES         ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-.STRUCT fs_filesystem_t
-    name ds 4
+; Defines a device - interaction with filesystem and file handles
+.STRUCT fs_device_template_t
+    ; name of the filesystem
+    fsname ds 4
+    ; 
+.ENDST
+
+.STRUCT fs_device_instance_t
+    ; device template - defines functionality
+    template dw
+    ; mount point
+    mount_name ds 14
+    ; custom data, depends on device
+    data ds 16
+.ENDST
+
+.STRUCT fs_handle_instance_t
+    state db
 .ENDST
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -89,8 +105,6 @@
 ;     .NEXTU dir
 ;         ; list of directory entries
 ;         dirent INSTANCEOF fs_mem_direntry_t 15
-;     .NEXTU mount
-;         device INSTANCEOF fs_device_descriptor_t
 ;     .ENDU
 ; .ENDST
 
