@@ -63,4 +63,43 @@ fs_open:
 .UNDEFINE P_FNAME
 .UNDEFINE P_MODE
 
+kfsInit__:
+    rep #$30
+; clear device templates
+    ldx #0
+    ldy #FS_DEVICE_TYPE_MAX_COUNT
+    lda #0
+    -:
+        sta.l kfsDeviceTemplateTable,X
+        sta.l kfsDeviceTemplateTable+1,X
+        inx
+        inx
+        inx
+        dey
+    bne -
+; clear device instances
+    ldx #0
+    ldy #FS_DEVICE_INSTANCE_MAX_COUNT
+    lda #0
+    -:
+        sta.l kfsDeviceInstanceTable,X
+        inx
+        inx
+        dey
+    bne -
+; clear open file table
+    ldx #kfsFileHandleTable
+    ldy #FS_OFT_SIZE
+    -:
+        lda #0
+        sta.l fs_handle_instance_t.state,X
+        txa
+        clc
+        adc #_sizeof_fs_handle_instance_t
+        tax
+        dey
+    bne -
+; end
+    rtl
+
 .ENDS
