@@ -51,4 +51,5 @@
     ; kFsRootDevice INSTANCEOF fs_device_descriptor_t
     ; kFsFileTable INSTANCEOF fs_filetable_t FS_OFT_SIZE
 ; end
+    ; kfsVolatileFilesystemReservation ds $4000
 .ENDS
