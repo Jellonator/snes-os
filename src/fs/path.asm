@@ -4,7 +4,7 @@
 .SECTION "Path" FREE
 
 ; Return true if string in X is an absolute path
-path_is_absolute:
+pathIsAbsolute:
     .INDEX 16
     sep #$20
     lda.w $0000,X
@@ -17,7 +17,7 @@ path_is_absolute:
     rtl ; True - first char is not '/'
 
 ; Return true if string in X is a relative path
-path_is_relative:
+pathIsRelative:
     .INDEX 16
     sep #$20
     lda.w $0000,X
@@ -30,7 +30,7 @@ path_is_relative:
     rtl ; False - first char is not '/'
 
 ; Return true if string in X is empty
-path_is_empty:
+pathIsEmpty:
     .INDEX 16
     sep #$20
     lda.w $0000,X
@@ -42,7 +42,7 @@ path_is_empty:
     rtl ; True - first char is null
 
 ; Get pointer to tail of X
-path_get_tail_ptr:
+pathGetTailPtr:
     .INDEX 16
     sep #$20
     lda.w $0000,X
@@ -68,7 +68,7 @@ path_get_tail_ptr:
 
 ; Validates path in X
 ; Returns with A=0 if invalid, or A=1 if valid
-path_validate:
+pathValidate:
     .INDEX 16
     sep #$20
     phx ; [+2; 2]
@@ -123,12 +123,12 @@ path_validate:
 
 ; Compare two paths pieces in separate buffers
 ; Push order:
-; src  [dl], $07
-; dest [dl], $04
+; str1 [dl], $07
+; str2 [dl], $04
 ; This is similar to `stringCmpL`, except:
 ;  * we only check up to 14 characters
 ;  * '/' is treated as a null
-path_compare_pieces:
+pathPieceCmp:
     rep #$30
     tsc ; A = SP
     phd ; Push DP
@@ -167,16 +167,17 @@ path_compare_pieces:
     lda.b [$04],Y
     bne +
         pld
+        lda #0
         rtl
     +:
     cmp #'/'
     bne +
-        lda #0
         pld
+        lda #0
         rtl
     +:
-    lda.b #$FF
     pld
+    lda.b #$FF
     rtl
 
 ; Reads next piece from path
@@ -186,7 +187,7 @@ path_compare_pieces:
 ; `dest` should be at least FS_MAX_FILENAME_LEN+1 bytes
 ; `src` will be incremented to the end of the piece
 ; `dest` will be incremented to the end of the string (nullptr)
-path_split_into_buffer:
+pathSplitIntoBuffer:
     rep #$30
     tsc ; A = SP
     phd ; Push DP

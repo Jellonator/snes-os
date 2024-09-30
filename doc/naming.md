@@ -13,6 +13,7 @@ Prefixes:
 * sh - shell functions
 * kfs - internal kernal filesystem functions
 * fs - public filesystem functions
+* path - public path API
 
 Standard library functions do not have a set prefix
 

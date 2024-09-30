@@ -92,6 +92,9 @@ _test_valid_path4_piece2:
 _test_valid_path5:
     .db ".\0"
 
+_test_fs_mount_temp:
+    .db "tmp\0"
+
 .MACRO .StartGroup ARGS groupname
     rep #$10
     ldy #@@@@@\.\@n
@@ -130,6 +133,21 @@ _test_valid_path5:
 
 .MACRO .CheckXEq ARGS value
     cpx #value
+    bne @@@@@\@\.@a
+    ; ok
+    sep #$20
+    lda.b #'O'
+    bra @@@@@\@\.@b
+    @@@@@\@\.@a:
+    ; err
+    sep #$20
+    lda.b #'X'
+    @@@@@\@\.@b:
+    jsl kPutC
+.ENDM
+
+.MACRO .CheckYEq ARGS value
+    cpy #value
     bne @@@@@\@\.@a
     ; ok
     sep #$20
@@ -524,98 +542,98 @@ shTest
     .StartGroup "PathCheck"
         rep #$10
         ldx #loword(_test_invalid_path1)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 0
         ldx #loword(_test_invalid_path2)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 0
         ldx #loword(_test_invalid_path3)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 0
         ldx #loword(_test_valid_path1)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 1
         ldx #loword(_test_valid_path2)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 1
         ldx #loword(_test_valid_path3)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 1
         ldx #loword(_test_valid_path4)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 1
         ldx #loword(_test_valid_path5)
-        jsl path_validate
+        jsl pathValidate
         .ACCU 8
         .CheckAEq 1
     .EndGroup
     .StartGroup "PathCmp"
         .PEAL _test_valid_path1_piece1
         .PEAL _test_valid_path1_piece1
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 6
         .PEAL _test_valid_path1_piece1
         .PEAL _test_valid_path1_piece2
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckANeq 0
         .POPN 6
         .PEAL _teststrempty
         .PEAL _test_valid_path1_piece2
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckANeq 0
         .POPN 6
         .PEAL _test_valid_path1_piece2
         .PEAL _teststrempty
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckANeq 0
         .POPN 6
         .PEAL _test_valid_path3+1
         .PEAL _test_valid_path3_piece1
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 6
         .PEAL _test_valid_path3+8
         .PEAL _test_valid_path3_piece2
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 6
         .PEAL _test_valid_path4
         .PEAL _test_valid_path4_piece1
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 6
         .PEAL _test_valid_path4+15
         .PEAL _test_valid_path4_piece2
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 6
         .PEAL _test_valid_path5
         .PEAL _test_valid_path5
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
@@ -624,46 +642,55 @@ shTest
     .StartGroup "PathRead"
         .PEAL _test_valid_path1
         .PEAL kTempBuffer
-        jsl path_split_into_buffer
+        jsl pathSplitIntoBuffer
         rep #$30
         lda #loword(kTempBuffer)
         sta $01,S
         .PEAL _test_valid_path1_piece1
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 3
-        jsl path_split_into_buffer
+        jsl pathSplitIntoBuffer
         rep #$30
         lda #loword(kTempBuffer)
         sta $01,S
         .PEAL _test_valid_path1_piece2
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 3
-        jsl path_split_into_buffer
+        jsl pathSplitIntoBuffer
         rep #$30
         lda #loword(kTempBuffer)
         sta $01,S
         .PEAL _test_valid_path1_piece3
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 3
-        jsl path_split_into_buffer
+        jsl pathSplitIntoBuffer
         rep #$30
         lda #loword(kTempBuffer)
         sta $01,S
         .PEAL _teststrempty
-        jsl path_compare_pieces
+        jsl pathPieceCmp
         .ACCU 8
         .INDEX 16
         .CheckAEq 0
         .POPN 9
+    .EndGroup
+    .StartGroup "FS Device"
+        ldx #loword(_test_fs_mount_temp)
+        jsl kfsFindDevicePointer
+        .CheckYEq loword(kfsDeviceInstanceTable)
+        rep #$30
+        ldx #loword(_test_valid_path1_piece1)
+        jsl kfsFindDevicePointer
+        .CheckYEq 0
     .EndGroup
 
     jsl procExit
