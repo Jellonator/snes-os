@@ -28,7 +28,8 @@
 .STRUCT fs_device_template_t
     ; name of the filesystem
     fsname ds 4
-    ; 
+    ; get inode from path
+    lookup dw
 .ENDST
 
 .STRUCT fs_device_instance_t
@@ -42,6 +43,9 @@
 
 .STRUCT fs_handle_instance_t
     state db
+    fileptr dw
+    device dw
+    inode dw
 .ENDST
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

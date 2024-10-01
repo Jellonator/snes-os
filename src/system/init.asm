@@ -93,16 +93,6 @@ kInitialize2__:
     stz.w loword(kJoy1Raw)
 ; filesystem init
     jsl kfsInit__
-    ; pea $F000 ; upper 16b of starting address
-    ; pea 2*$0100 + 128 ; #banks + #pages
-    ; jsl kfsMemInit
-    ; sep #$20
-    ; lda #FS_DEVICE_SRAM
-    ; sta.w loword(kFsRootDevice.device)
-    ; rep #$20
-    ; pla
-    ; pla
-    ; sta.w loword(kFsRootDevice.devptr)
 ; re-enable IRQ/NMI
     rep #$20
     lda #128 ; choose close to center of screen to
@@ -119,7 +109,6 @@ kInitialize2__:
     lda #%00001111
     sta.l INIDISP
 ; spawn test process
-    ; .CreateReadyProcess KTestProgram__, 64, 0
     .CreateReadyProcess os_shell, 64, 0, os_shell@n
 ; Finally, just become an infinite loop as process 1
     - jsl procReschedule
