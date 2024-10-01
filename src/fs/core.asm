@@ -1,7 +1,38 @@
 .include "base.inc"
 
+
+.MACRO .FsCall ARGS func
+    ; setup return address
+    phk
+    pea @@@@@\.\@ - 1
+    ; setup target address
+    sep #$20
+    lda.l $FE0002,X
+    pha
+    rep #$20
+    lda.l $FE0000,X
+    clc
+    adc #func
+    pha
+    ; call
+    rtl
+@@@@@\.\@:
+.ENDM
+
 .BANK $01 SLOT "ROM"
 .SECTION "KFSCore" FREE
+
+; Static filesystem (unchanging)
+kfsDeviceStatic:
+    .db "static\0"
+
+; Volatile filesystem (resets on startup)
+kfsDeviceTemp:
+    .db "tmp\0"
+
+; Home filesystem (saved between sessions)
+kfsDeviceHome:
+    .db "home\0"
 
 ; find an open file handle and store a pointer to it in X
 _fs_get_open_file_handle:
@@ -26,7 +57,8 @@ _fs_get_open_file_handle:
     @find_fh_end:
     rts
 
-; find a device for the given path piece in X
+; Find a device for the given path piece in X
+; Returns found device in Y
 kfsFindDevicePointer:
     rep #$30
     ;
@@ -92,7 +124,7 @@ kfsFindDevicePointer:
     plx ; [-2; 1]
     plb ; [-1; 0]
     ldy #0
-    rts
+    rtl
 
 ; Open a file
 ; [X]fs_device_instance_t *fs_open([S]long char *filename, [S]byte mode)
@@ -119,14 +151,91 @@ fsOpen:
     ; +:
     ; Find empty file descriptor
     jsr _fs_get_open_file_handle
+    rep #$30
+    cpx #0
+    beq @end_null
+    phx
     ; Find file device
+    jsl kfsFindDevicePointer
+    rep #$30
+    cpy #0
+    beq @end_null
+    phy
+    ; Call into device to get inode
+    tyx
+    phk
+    pea @destination - 1
+    sep #$20
+    lda.l $FE0002,X
+    pha
+    rep #$20
+    lda.l $FE0000,X
+    clc
+    adc #fs_device_template_t.lookup
+    pha
+    rtl
+@destination:
+
+    ; phd
+    ; tyx
     ; end
-@end:
+@end_null:
     sep #$20
     .RestoreInt__ ; -1 (0)
+    rep #$10
+    ldx #0
+    ldy #0
     rtl
 .UNDEFINE P_FNAME
 .UNDEFINE P_MODE
+
+; mount device, returns pointer to device in X
+; Push order:
+; device [dw], $07
+; name   [dl], $04
+kfsMount:
+    ; find free device
+    rep #$30
+    ldx #loword(kfsDeviceInstanceTable)
+@loop:
+    lda.l $7E0000 + fs_device_instance_t.template,X
+    beq @found
+    ; increment device instance
+    txa
+    clc
+    adc #_sizeof_fs_device_instance_t
+    tax
+    ; check instance pointer is in bounds
+    cmp #loword(kfsDeviceInstanceTable)+(FS_DEVICE_INSTANCE_MAX_COUNT*_sizeof_fs_device_instance_t)
+    bcc @loop
+; none found
+    ldx #0
+    rtl
+@found:
+    lda $07,S
+    sta.l $7E0000 + fs_device_instance_t.template,X
+    phx
+    ; copy name
+    tsc
+    phd
+    tcd
+    sep #$20
+    ldy #0
+@loop_write:
+    lda.b [2+$04],Y
+    sta.l $7E0000 + fs_device_instance_t.mount_name,X
+    inx
+    iny
+    cpy #FS_MAX_FILENAME_LEN
+    bcs @end_write
+    cmp #0
+    bne @loop_write
+    ; end
+@end_write
+    pld
+    rep #$30
+    plx
+    rtl
 
 kfsInit__:
     rep #$30
@@ -174,19 +283,16 @@ kfsInit__:
     lda #loword(KFS_DeviceType_Mem)
     sta.l kfsDeviceTemplateTable
 ; mount devices
-; TODO: proper dynamic mounting
-    ldx #loword(kfsDeviceInstanceTable)
-    lda #loword(kfsDeviceTemplateTable)
-    sta.l $7E0000 + fs_device_instance_t.template,X
-    sep #$20
-    lda #'t'
-    sta.l $7E0000 + fs_device_instance_t.mount_name+0,X
-    lda #'m'
-    sta.l $7E0000 + fs_device_instance_t.mount_name+1,X
-    lda #'p'
-    sta.l $7E0000 + fs_device_instance_t.mount_name+2,X
-    lda #'\0'
-    sta.l $7E0000 + fs_device_instance_t.mount_name+3,X
+    pea kfsDeviceTemplateTable
+    .PEAL kfsDeviceTemp
+    jsl kfsMount
+    .POPN 3
+    .PEAL kfsDeviceStatic
+    jsl kfsMount
+    .POPN 3
+    .PEAL kfsDeviceHome
+    jsl kfsMount
+    .POPN 5
 ; end
     rtl
 

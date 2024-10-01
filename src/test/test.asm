@@ -684,11 +684,22 @@ shTest
         .POPN 9
     .EndGroup
     .StartGroup "FS Device"
-        ldx #loword(_test_fs_mount_temp)
+        phb
+        .ChangeDataBank bankbyte(kfsDeviceStatic)
+        ldx #loword(kfsDeviceStatic)
+        jsl kfsFindDevicePointer
+        .CheckYEq loword(kfsDeviceInstanceTable) + _sizeof_fs_device_instance_t
+        rep #$30
+        ldx #loword(kfsDeviceTemp)
         jsl kfsFindDevicePointer
         .CheckYEq loword(kfsDeviceInstanceTable)
         rep #$30
-        ldx #loword(_test_valid_path1_piece1)
+        ldx #loword(kfsDeviceHome)
+        jsl kfsFindDevicePointer
+        .CheckYEq loword(kfsDeviceInstanceTable) + (_sizeof_fs_device_instance_t * 2)
+        plb
+        rep #$30
+        ldx #loword(_teststr1)
         jsl kfsFindDevicePointer
         .CheckYEq 0
     .EndGroup
