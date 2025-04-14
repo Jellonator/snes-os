@@ -207,7 +207,7 @@ fsOpen:
     ; check inode
     cpx #0
     bne +
-        .POPN 7
+        .POPN 4
         jmp @end_null
     +:
     phx ; [+2, 9]

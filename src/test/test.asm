@@ -98,6 +98,18 @@ _test_fs_mount_temp:
 _test_path_rom1:
     .db "/static/foo\0"
 
+_test_path_rom2:
+    .db "/static/bar\0"
+
+_test_path_rom3:
+    .db "/static/hello/world\0"
+
+_test_path_rom_invalidfile1:
+    .db "/static/baz\0"
+
+_test_path_rom_invalidfile2:
+    .db "/static/hello/foo\0"
+
 .MACRO .StartGroup ARGS groupname
     rep #$10
     ldy #@@@@@\.\@n
@@ -707,6 +719,7 @@ shTest
         .CheckYEq 0
     .EndGroup
     .StartGroup "FS Open"
+        ; ROM 1
         phb
         ldx #loword(_test_path_rom1)
         jsl fsOpen
@@ -714,6 +727,43 @@ shTest
         txa
         plb
         .CheckANeq 0
+        jsl fsClose
+        ; ROM 2
+        phb
+        ldx #loword(_test_path_rom2)
+        jsl fsOpen
+        rep #$30
+        txa
+        plb
+        .CheckANeq 0
+        jsl fsClose
+        ; ROM 3
+        phb
+        ldx #loword(_test_path_rom3)
+        jsl fsOpen
+        rep #$30
+        txa
+        plb
+        .CheckANeq 0
+        jsl fsClose
+        ; INVALID 1
+        phb
+        ldx #loword(_test_path_rom_invalidfile1)
+        jsl fsOpen
+        rep #$30
+        txa
+        plb
+        .CheckAEq 0
+        jsl fsClose
+        ; INVALID 2
+        phb
+        ldx #loword(_test_path_rom_invalidfile2)
+        jsl fsOpen
+        rep #$30
+        txa
+        plb
+        .CheckAEq 0
+        jsl fsClose
     .EndGroup
 
     jsl procExit

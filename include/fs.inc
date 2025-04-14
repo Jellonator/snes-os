@@ -33,10 +33,10 @@
     ; void init([s16]fs_device_instance_t *dev);
     init dw
     ; Cleanup filesystem
-    ; void free(s16]fs_device_instance_t *dev);
+    ; void free([s16]fs_device_instance_t *dev);
     free dw
     ; Get inode from path
-    ; [x16]inode *lookup([s24]char *path);
+    ; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
     lookup dw
     ; Read from file into buffer
     ; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
