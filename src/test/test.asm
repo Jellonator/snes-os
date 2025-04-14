@@ -110,6 +110,18 @@ _test_path_rom_invalidfile1:
 _test_path_rom_invalidfile2:
     .db "/static/hello/foo\0"
 
+_hello_world_first4:
+    .db "Hell\0"
+
+_hello_world_second4:
+    .db "o, W\0"
+
+_hello_world_third4:
+    .db "orld\0"
+
+_hello_world_last4:
+    .db "!\0"
+
 .MACRO .StartGroup ARGS groupname
     rep #$10
     ldy #@@@@@\.\@n
@@ -726,7 +738,8 @@ shTest
         rep #$30
         txa
         plb
-        .CheckANeq 0
+        lda.l $7E0000 + fs_handle_instance_t.inode,X
+        .CheckAEq $0082
         jsl fsClose
         ; ROM 2
         phb
@@ -735,7 +748,8 @@ shTest
         rep #$30
         txa
         plb
-        .CheckANeq 0
+        lda.l $7E0000 + fs_handle_instance_t.inode,X
+        .CheckAEq $0081
         jsl fsClose
         ; ROM 3
         phb
@@ -744,7 +758,8 @@ shTest
         rep #$30
         txa
         plb
-        .CheckANeq 0
+        lda.l $7E0000 + fs_handle_instance_t.inode,X
+        .CheckAEq $0084
         jsl fsClose
         ; INVALID 1
         phb
@@ -754,7 +769,7 @@ shTest
         txa
         plb
         .CheckAEq 0
-        jsl fsClose
+        ; jsl fsClose
         ; INVALID 2
         phb
         ldx #loword(_test_path_rom_invalidfile2)
@@ -763,7 +778,99 @@ shTest
         txa
         plb
         .CheckAEq 0
+        ; jsl fsClose
+    .EndGroup
+    .StartGroup "FS Read"
+        ; OPEN
+        phb
+        ldx #loword(_test_path_rom3)
+        jsl fsOpen
+        stx.b $10
+        rep #$30
+        txa
+        lda.l $7E0000 + fs_handle_instance_t.inode,X
+        .CheckAEq $0084
+        plb
+        ; READ FIRST
+        .PEAL kTempBuffer
+        pea 4
+        ldx.b $10
+        jsl fsRead
+        rep #$20
+        .CheckAEq 4
+        rep #$20
+        pla
+        lda #0
+        sta.l kTempBuffer+4
+        .PEAL _hello_world_first4
+        jsl stringCmpL
+        .ACCU 8
+        .CheckAEq 0
+        .POPN 3
+        ; READ SECOND
+        pea 4
+        ldx.b $10
+        jsl fsRead
+        rep #$20
+        .CheckAEq 4
+        rep #$20
+        pla
+        lda #0
+        sta.l kTempBuffer+4
+        .PEAL _hello_world_second4
+        jsl stringCmpL
+        .ACCU 8
+        .CheckAEq 0
+        .POPN 3
+        ; READ THIRD
+        pea 4
+        ldx.b $10
+        jsl fsRead
+        rep #$20
+        .CheckAEq 4
+        rep #$20
+        pla
+        lda #0
+        sta.l kTempBuffer+4
+        .PEAL _hello_world_third4
+        jsl stringCmpL
+        .ACCU 8
+        .CheckAEq 0
+        .POPN 3
+        ; READ FOURTH
+        pea 4
+        ldx.b $10
+        jsl fsRead
+        rep #$20
+        .CheckAEq 2
+        rep #$20
+        pla
+        lda #0
+        sta.l kTempBuffer+2
+        .PEAL _hello_world_last4
+        jsl stringCmpL
+        .ACCU 8
+        .CheckAEq 0
+        .POPN 3
+        ; READ EOL
+        pea 4
+        ldx.b $10
+        jsl fsRead
+        rep #$20
+        .CheckAEq 0
+        rep #$20
+        pla
+        ; lda #0
+        ; sta.l kTempBuffer+4
+        ; .PEAL _teststrempty
+        ; jsl stringCmpL
+        ; .ACCU 8
+        ; .CheckAEq 0
+        .POPN 3
+        ; END
+        ldx.b $10
         jsl fsClose
+        .POPN 3
     .EndGroup
 
     jsl procExit

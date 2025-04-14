@@ -268,17 +268,20 @@ fsRead:
     .INDEX 16
     phx ; [+2, 2] PARAM fh
     sep #$20
-    lda $08,S
+    lda 2+$08,S
     pha ; [+1, 3] PARAM buffer (bank)
     rep #$30
-    lda $06,S
+    lda 3+$06,S
     pha ; [+2, 5] PARAM buffer
+    lda 5+$04,S
+    pha ; [+2; 7] PARAM nbytes
     lda.l $7E0000 + fs_handle_instance_t.device,X
     tax
     lda.l $7E0000 + fs_device_instance_t.template,X
+    tax
     .FsCall fs_device_template_t.read
     sta.b $00
-    .POPN 3
+    .POPN 5
     rep #$30
     plx
     lda.b $00

@@ -10,6 +10,9 @@
 ; $7E,X: device
 _memfs_clear_device_instance:
     rep #$30
+    phd ; set up for use of direct page
+    lda #$0000
+    tcd
     lda #'M' | ('E' << 8)
     sta.w $0000,Y
     lda #'M' | (0 << 8)
@@ -106,6 +109,7 @@ _memfs_clear_device_instance:
     rep #$20
     lda #0
     sta.w fs_memdev_root_t.dirent.1.blockId,X
+    pld
     rts
 
 ; $04,S: fs_device_instance_t* device
@@ -264,13 +268,14 @@ _memfs_lookup:
             beq @found_inode
                 jmp @search_failed
             @found_inode:
-                sep #$20
                 txa
+                sep #$20
                 phb
                 pla
                 xba
                 plb
                 rep #$20
+                tax
                 rtl
     ; end
 @search_failed:
@@ -279,8 +284,78 @@ _memfs_lookup:
     ldx #0
     rtl
 
+; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+; fh:     $09,S
+; buffer: $06,S
+; nbytes: $04,S
 _memfs_read:
+    ; TODO: implement indirect blocks
+    .DEFINE BYTES_TO_READ kTmpBuffer
+    rep #$30
+    lda $04,S
+    bne @has_bytes
+        lda #0
+        rtl
+@has_bytes:
+    ; switch direct page
+    phd ; [+2, 2]
+    lda #$0000
+    tcd
+    ; put inode ptr
+    lda 2+$09,S
+    tax
+    lda.l $7E0000 + fs_handle_instance_t.inode,X
+    stz.b kTmpPtrL
+    sta.b kTmpPtrL+1
+    ; put buffer ptr
+    lda 2+$06,S
+    sta.b kTmpPtrL2
+    lda 2+$08,S
+    sta.b kTmpPtrL2+2
+    ; check size
+    lda 2+$04,S
+    sta.b BYTES_TO_READ
+    ldy #fs_memdev_inode_t.size
+    lda [kTmpPtrL],Y
+    sec
+    sbc.l $7E0000 + fs_handle_instance_t.fileptr,X
+    .AMINU P_DIR BYTES_TO_READ
+    sta.b BYTES_TO_READ
+    bne +
+        pld
+        lda #0
+        rtl
+    +:
+    ; inc inode to directData + fileptr
+    lda.b kTmpPtrL
+    clc
+    adc #fs_memdev_inode_t.file.directData
+    clc
+    adc.l $7E0000 + fs_handle_instance_t.fileptr,X
+    sta.b kTmpPtrL
+    ; copy bytes
+    sep #$20
+    ldy #0
+    ldx.b BYTES_TO_READ
+    @loop_copy:
+        lda [kTmpPtrL],Y
+        sta [kTmpPtrL2],Y
+        iny
+        dex
+        bne @loop_copy
+    ; update fileptr
+    rep #$20
+    lda 2+$09,S
+    tax
+    lda.l $7E0000 + fs_handle_instance_t.fileptr,X
+    clc
+    adc.b BYTES_TO_READ
+    sta.l $7E0000 + fs_handle_instance_t.fileptr,X
+    ; end
+    lda.b BYTES_TO_READ
+    pld ; [-2, 0]
     rtl
+    .UNDEFINE BYTES_TO_READ
 
 _memfs_write:
     rtl
@@ -293,133 +368,4 @@ _memfs_write:
     write  .dw _memfs_write
 .ENDST
 
-; _magicNum:
-;     .db "FMD9"
-
-; ; note: divide round up
-; ; result = (x + n-1) / n
-
-; ; Initialize Y directory entries at X
-; kfsMemDirInit:
-;     rep #$30 ; 16b AXY
-;     bra @enter
-; @loop:
-;     txa
-;     clc
-;     adc #16
-;     tax
-; @enter:
-;     stz.w $0000,X
-;     dey
-;     bne @loop
-;     rtl
-
-; ; Initialize memory device
-; ; Push order:
-; ;   bank   [db] $03
-; ;   page   [db] $02
-; ;   nbanks [db] $01, number of banks
-; ;   npages [db] $00, number of pages per bank
-; kfsMemInit:
-;     sep #$20
-;     .DisableInt__
-;     phb
-;     .DEFINE STK 6
-;     .DEFINE P_BANK $03+STK
-;     .DEFINE P_PAGE $02+STK
-;     .DEFINE P_NBANK $01+STK
-;     .DEFINE P_NPAGE $00+STK
-;     ; data bank = p_bank
-;     sep #$20
-;     lda P_BANK,s
-;     pha
-;     plb
-;     ; x = p_page * $0100
-;     rep #$30
-;     lda P_PAGE,s
-;     xba
-;     and #$FF00
-;     tax
-; ; begin
-;     ; set magic number
-;     lda.l _magicNum
-;     sta.w fs_mem_header_t.magicnum,X
-;     lda.l _magicNum+2
-;     sta.w fs_mem_header_t.magicnum+2,X
-;     ; set device and flags
-;     lda #FS_DEVICE_SRAM
-;     sta.w fs_mem_header_t.device,X ; flags = 0
-;     ; set bank/block count
-;     lda P_NBANK,s
-;     and #$00FF
-;     sta.w fs_mem_header_t.nBanks,X
-;     sep #$20
-;     sta.l MULTU_A
-;     rep #$20
-;     lda P_NPAGE,s
-;     and #$00FF
-;     sta.w fs_mem_header_t.nBlocksPerBank,X
-;     sep #$20
-;     sta.l MULTU_B
-;     rep #$20
-;     ; wait for multiplication to finish
-;     ; set free mask and first inode indices
-;     ; stz.w fs_mem_header_t.nUsedDataBLocks,X
-;     stz.w fs_mem_header_t.nUsedInodeBlocks,X
-;     stz.w fs_mem_header_t.nFreeMaskBlocks,X ; TODO: proper calculation
-;     lda #1
-;     sta.w fs_mem_header_t.firstInodeBlock,X
-;     ; get nBlocks
-;     lda.l MULTU_RESULT
-;     sta.w fs_mem_header_t.nBlocks,X
-;     ; nmaskbytes = (nblocks+8-1)/8
-;     clc
-;     adc #8-1
-;     lsr
-;     lsr
-;     lsr
-;     sta.w fs_mem_header_t.nFreeMaskBytes,X
-;     ; nInodeBlocks = nBlocks / 4
-;     lda.w fs_mem_header_t.nBlocks,X
-;     lsr
-;     lsr
-;     sta.w fs_mem_header_t.nInodeBlocks,X
-;     clc
-;     adc.w fs_mem_header_t.nFreeMaskBlocks,X
-;     inc A
-;     sta.w fs_mem_header_t.firstDataBlock,X
-;     lda.w fs_mem_header_t.nBlocks,X
-;     sec
-;     sbc.w fs_mem_header_t.firstDataBlock,X
-;     sta.w fs_mem_header_t.nDataBlocks,X
-;     ; set up root directory
-;     phx
-;     txa
-;     clc
-;     adc #fs_mem_header_t.rootDir
-;     tax
-;     ldy #10
-;     jsl kfsMemDirInit
-;     rep #$30 ; 16b AXY
-;     plx
-;     ; clear mask data
-;     lda.w fs_mem_header_t.nFreeMaskBytes,X
-;     inc A
-;     lsr
-;     phx
-;     ; txy
-;     @loop:
-;         stz.w fs_mem_header_t.maskData,X
-;         inx
-;         inx
-;         dec A
-;         bne @loop
-;     plx
-;     sep #$20
-;     lda #%00000001
-;     sta.w fs_mem_header_t.maskData,X ; first bit set
-; ; end
-;     plb
-;     .RestoreInt__
-;     rtl
 .ENDS
