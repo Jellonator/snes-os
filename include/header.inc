@@ -26,8 +26,8 @@
     FASTROM
     LOROM
 
-    CARTRIDGETYPE $00 ; $00 = ROM only
-    SRAMSIZE $03      ; 64KB
+    CARTRIDGETYPE $02 ; $00 = ROM + SRAM
+    SRAMSIZE $07      ; 128KB
     COUNTRY $01       ; $01 = U.S.
     LICENSEECODE $00
     VERSION $00

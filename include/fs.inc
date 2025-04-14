@@ -28,8 +28,21 @@
 .STRUCT fs_device_template_t
     ; name of the filesystem
     fsname ds 4
-    ; get inode from path
+    ; Initialize filesystem
+    ; void init([s16]fs_device_instance_t *dev);
+    init dw
+    ; Cleanup filesystem
+    ; void free(s16]fs_device_instance_t *dev);
+    free dw
+    ; Get inode from path
+    ; [x16]inode *lookup([s24]char *path);
     lookup dw
+    ; Read from file into buffer
+    ; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+    read dw
+    ; Write data from buffer into file
+    ; [a16]bool write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+    write dw
 .ENDST
 
 .STRUCT fs_device_instance_t
@@ -46,6 +59,16 @@
     fileptr dw
     device dw
     inode dw
+.ENDST
+
+.STRUCT fs_device_instance_mem_data_t SIZE 16
+    bank_first db
+    bank_last db
+    page_first db
+    page_last db
+    blocks_per_bank db
+    num_banks db
+    blocks_total dw
 .ENDST
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
