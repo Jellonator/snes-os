@@ -143,9 +143,140 @@ _memfs_init:
 _memfs_free:
     rtl
 
+; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
+; path: $04,S
+; dev: $07,S
 _memfs_lookup:
+    phb
     rep #$30
-    ldx #$1234
+    lda 1+$07,S
+    tax
+    ; get header
+    sep #$20
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+    pha
+    plb
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+    xba
+    lda #0
+    tay ; Y = first_bank:first_page:00
+    ; search directory entries
+    jmp @begin_search
+    @loop_search:
+        rep #$30
+        ; next dirent
+        tya
+        clc
+        adc #_sizeof_fs_memdev_direntry_t
+        tay
+        ; if we wrapped, then end search
+        bit #$00FF
+        bne @begin_search
+        jmp @search_failed
+    @begin_search:
+        rep #$20
+        lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+        beql @search_failed
+    ; compare paths
+        phy
+        ; directory path
+        tya
+        clc
+        adc #fs_memdev_inode_t.dir.dirent.1.name
+        phb
+        pha
+        ; check path
+        sep #$20
+        lda 6+$06,S
+        pha
+        rep #$20
+        lda 7+$04,S
+        pha
+        ; do compare
+        jsl pathPieceCmp
+        rep #$30
+        ply
+        ply
+        ply
+        ply
+        sep #$20
+        cmp #0
+        bne @loop_search
+        ; name matched, check some stuff
+        ; if NODE is FILE and TAIL(PATH) is EMPTY: return NODE
+        ; if NODE is DIR and TAIL(PATH) is EMPTY: FAIL
+        ; if NODE is FILE and TAIL(PATH) is VALID: FAIL
+        ; if NODE is DIR and TAIL(PATH) is VALID: search NODE
+        ; PATH = TAIL(PATH)
+        rep #$20
+        lda 1+$04,S
+        tax
+        sep #$20
+        lda 1+$06,S
+        phb
+        pha
+        plb
+        jsl pathGetTailPtr
+        rep #$20
+        txa
+        sta 2+$04,S
+        ; calculate if path is empty
+        jsl pathIsEmpty
+        sep #$20
+        plb ; restore bank
+        cmp #0
+        bne @tail_is_empty
+        ; VALID TAIL
+            ; swap context to inode
+            lda #0
+            xba
+            lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+            xba
+            tax
+            lda.w fs_memdev_inode_t.dir.dirent.1.blockId+1,Y
+            pha
+            plb
+            txy
+            ; check type
+            rep #$20
+            lda.w fs_memdev_inode_t.type,Y
+            cmp #FS_INODE_TYPE_DIR
+            beq @begin_search
+            jmp @search_failed
+        @tail_is_empty:
+        ; EMPTY TAIL
+            .ACCU 8
+            .INDEX 16
+            ; swap context to inode
+            lda #0
+            xba
+            lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+            xba
+            tax
+            lda.w fs_memdev_inode_t.dir.dirent.1.blockId+1,Y
+            pha
+            plb
+            txy
+            ; check type
+            rep #$20
+            lda.w fs_memdev_inode_t.type,Y
+            cmp #FS_INODE_TYPE_FILE
+            beq @found_inode
+                jmp @search_failed
+            @found_inode:
+                sep #$20
+                txa
+                phb
+                pla
+                xba
+                plb
+                rep #$20
+                rtl
+    ; end
+@search_failed:
+    rep #$30
+    plb
+    ldx #0
     rtl
 
 _memfs_read:
