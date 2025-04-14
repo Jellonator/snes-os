@@ -434,7 +434,7 @@ kfsInit__:
     .POPN 6
     .PEAL kfsDeviceStaticData
     .PEAL kfsDeviceStaticPath
-    ; jsl kfsMount
+    jsl kfsMount
     .POPN 6
     .PEAL kfsDeviceHomeData
     .PEAL kfsDeviceHomePath

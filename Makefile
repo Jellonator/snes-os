@@ -9,6 +9,7 @@ ALDFLAGS := -S -v
 PY       := python3
 
 SOURCES  := fs/core.asm\
+			fs/data.asm\
 			fs/mem.asm\
 			fs/path.asm\
 			lib/lib.asm\

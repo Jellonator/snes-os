@@ -5,62 +5,6 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KFSMem" FREE
 
-; directory entry
-.STRUCT _mem_direntry_t ; SIZE 16
-    blockId dw ; if blockId == 0, then end.
-    name ds 14
-.ENDST
-
-; inode structure
-; inodes form a linked list, to make allocating and releasing them fast.
-.STRUCT _mem_inode_t SIZE 256
-    type dw
-    nlink dw
-    size dsw 2
-    inode_next dw
-    _reserved dsw 3
-    .UNION file
-        ; first 192 bytes of data are stored directly in the inode
-        directData ds 192 ; up to 192B of data
-        ; direct blocks of data
-        directBlocks dsw 16 ; up to 4K of data
-        ; indirect blocks storing inode IDs of data
-        indirectBlocks dsw 4 ; up to 128K data
-        _reserved dsw 4
-    .NEXTU dir
-        ; list of directory entries
-        _reserved ds 16
-        dirent INSTANCEOF _mem_direntry_t 14
-    .ENDU
-.ENDST
-
-; inode* = $0100*inodeId
-
-; root structure
-.STRUCT _mem_root_t SIZE 256
-    magicnum ds 4
-; layout info
-    bank_first db
-    bank_last db
-    page_first db
-    page_last db
-    num_blocks_per_bank db
-    num_banks db
-    num_blocks_total dw
-; inode layout
-    ; number of used inodes
-    num_used_inodes dw
-    ; total number of inodes
-    num_total_inodes dw
-    ; number of free inodes
-    num_free_inodes dw
-    ; first free inode in linked list
-    inode_next_free dw
-; directory
-    _reserved ds 12
-    dirent INSTANCEOF _mem_direntry_t 14
-.ENDST
-
 ; $06,S: fs_device_instance_t* device
 ; B,Y: header
 ; $7E,X: device
@@ -77,52 +21,52 @@ _memfs_clear_device_instance:
     .ENDR
 ; set up other data
     lda #1 ; first inode is header
-    sta.w _mem_root_t.num_used_inodes,Y
-    lda.w _mem_root_t.num_blocks_total,Y
-    sta.w _mem_root_t.num_total_inodes,Y
+    sta.w fs_memdev_root_t.num_used_inodes,Y
+    lda.w fs_memdev_root_t.num_blocks_total,Y
+    sta.w fs_memdev_root_t.num_total_inodes,Y
     dec A
-    sta.w _mem_root_t.num_free_inodes,Y
+    sta.w fs_memdev_root_t.num_free_inodes,Y
     tyx ; b,X is now used for header
 ; set up linked list
     ; first item
     sep #$20
-    lda.w _mem_root_t.bank_first,X
+    lda.w fs_memdev_root_t.bank_first,X
     xba
-    lda.w _mem_root_t.page_first,X
+    lda.w fs_memdev_root_t.page_first,X
     rep #$20
-    sta.w _mem_root_t.inode_next_free,X
+    sta.w fs_memdev_root_t.inode_next_free,X
     ; iterate
-    lda.w _mem_root_t.page_first,X
+    lda.w fs_memdev_root_t.page_first,X
     inc A
     xba
     and #$FF00
     sta.b kTmpPtrL
     sep #$20
-    lda.w _mem_root_t.bank_first,X
+    lda.w fs_memdev_root_t.bank_first,X
     sta.b kTmpPtrL+2
     @loop_bank:
         @loop_block:
             rep #$20
             ; TYPE = EMPTY
             lda #FS_INODE_TYPE_EMPTY
-            ldy #_mem_inode_t.type
+            ldy #fs_memdev_inode_t.type
             sta [kTmpPtrL],Y
             ; INODE_NEXT = NULL
             lda #0
-            ldy #_mem_inode_t.inode_next
+            ldy #fs_memdev_inode_t.inode_next
             sta [kTmpPtrL],Y ; initialize inode_next to NULL; will be initialized in 'inc' code
             ; NLINK = 0
-            ldy #_mem_inode_t.nlink
+            ldy #fs_memdev_inode_t.nlink
             sta [kTmpPtrL],Y
             ; SIZE = 0
-            ldy #_mem_inode_t.size
+            ldy #fs_memdev_inode_t.size
             sta [kTmpPtrL],Y
-            ldy #_mem_inode_t.size+2
+            ldy #fs_memdev_inode_t.size+2
             sta [kTmpPtrL],Y
             ; check if last block
             sep #$20
             lda.b kTmpPtrL+1
-            cmp.w _mem_root_t.page_last,X
+            cmp.w fs_memdev_root_t.page_last,X
             beq @loop_block_end
             ; initialize inode_next of node
             rep #$20
@@ -138,13 +82,13 @@ _memfs_clear_device_instance:
         ; check if last bank
         sep #$20
         lda.b kTmpPtrL+2
-        cmp.w _mem_root_t.bank_last,X
+        cmp.w fs_memdev_root_t.bank_last,X
         beq @loop_bank_end
         ; initialize inode_next of node
         lda.b kTmpPtrL+2
         inc A
         xba
-        lda.w _mem_root_t.page_first,X
+        lda.w fs_memdev_root_t.page_first,X
         rep #$20
         sta [kTmpPtrL],Y
         ; increment pointer
@@ -152,12 +96,16 @@ _memfs_clear_device_instance:
         inc A
         sta.b kTmpPtrL+2
         ; reset first page
-        lda.w _mem_root_t.page_first,X
+        lda.w fs_memdev_root_t.page_first,X
         xba
         and #$FF00
         sta.b kTmpPtrL
         jmp @loop_bank
     @loop_bank_end:
+    ; clear directory
+    rep #$20
+    lda #0
+    sta.w fs_memdev_root_t.dirent.1.blockId,X
     rts
 
 ; $04,S: fs_device_instance_t* device
