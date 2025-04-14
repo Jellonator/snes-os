@@ -12,11 +12,13 @@
 .ENDST
 
 ; inode structure
-.STRUCT _mem_inode_t
+; inodes form a linked list, to make allocating and releasing them fast.
+.STRUCT _mem_inode_t SIZE 256
     type dw
     nlink dw
-    size dw
-    _reserved dsw 5
+    size dsw 2
+    inode_next dw
+    _reserved dsw 3
     .UNION file
         ; first 192 bytes of data are stored directly in the inode
         directData ds 192 ; up to 192B of data
@@ -27,25 +29,135 @@
         _reserved dsw 4
     .NEXTU dir
         ; list of directory entries
-        dirent INSTANCEOF _mem_direntry_t 15
+        _reserved ds 16
+        dirent INSTANCEOF _mem_direntry_t 14
     .ENDU
 .ENDST
 
-; inode* = $010000*BANK + $0100*inodeId
+; inode* = $0100*inodeId
 
 ; root structure
-; .STRUCT _mem_root_t
-
-; .ENDST
+.STRUCT _mem_root_t SIZE 256
+    magicnum ds 4
+; layout info
+    bank_first db
+    bank_last db
+    page_first db
+    page_last db
+    num_blocks_per_bank db
+    num_banks db
+    num_blocks_total dw
+; inode layout
+    ; number of used inodes
+    num_used_inodes dw
+    ; total number of inodes
+    num_total_inodes dw
+    ; number of free inodes
+    num_free_inodes dw
+    ; first free inode in linked list
+    inode_next_free dw
+; directory
+    _reserved ds 12
+    dirent INSTANCEOF _mem_direntry_t 14
+.ENDST
 
 ; $06,S: fs_device_instance_t* device
 ; B,Y: header
+; $7E,X: device
 _memfs_clear_device_instance:
-    rep #$20
+    rep #$30
     lda #'M' | ('E' << 8)
     sta.w $0000,Y
     lda #'M' | (0 << 8)
     sta.w $0002,Y
+; set up layout (copy 8 bytes)
+    .REPT 4 INDEX i
+        lda.l $7E0000 + fs_device_instance_t.data + (i*2),X
+        sta.w $0004 + (i*2),Y
+    .ENDR
+; set up other data
+    lda #1 ; first inode is header
+    sta.w _mem_root_t.num_used_inodes,Y
+    lda.w _mem_root_t.num_blocks_total,Y
+    sta.w _mem_root_t.num_total_inodes,Y
+    dec A
+    sta.w _mem_root_t.num_free_inodes,Y
+    tyx ; b,X is now used for header
+; set up linked list
+    ; first item
+    sep #$20
+    lda.w _mem_root_t.bank_first,X
+    xba
+    lda.w _mem_root_t.page_first,X
+    rep #$20
+    sta.w _mem_root_t.inode_next_free,X
+    ; iterate
+    lda.w _mem_root_t.page_first,X
+    inc A
+    xba
+    and #$FF00
+    sta.b kTmpPtrL
+    sep #$20
+    lda.w _mem_root_t.bank_first,X
+    sta.b kTmpPtrL+2
+    @loop_bank:
+        @loop_block:
+            rep #$20
+            ; TYPE = EMPTY
+            lda #FS_INODE_TYPE_EMPTY
+            ldy #_mem_inode_t.type
+            sta [kTmpPtrL],Y
+            ; INODE_NEXT = NULL
+            lda #0
+            ldy #_mem_inode_t.inode_next
+            sta [kTmpPtrL],Y ; initialize inode_next to NULL; will be initialized in 'inc' code
+            ; NLINK = 0
+            ldy #_mem_inode_t.nlink
+            sta [kTmpPtrL],Y
+            ; SIZE = 0
+            ldy #_mem_inode_t.size
+            sta [kTmpPtrL],Y
+            ldy #_mem_inode_t.size+2
+            sta [kTmpPtrL],Y
+            ; check if last block
+            sep #$20
+            lda.b kTmpPtrL+1
+            cmp.w _mem_root_t.page_last,X
+            beq @loop_block_end
+            ; initialize inode_next of node
+            rep #$20
+            lda.b kTmpPtrL+1
+            inc A
+            sta [kTmpPtrL],Y
+            ; increment pointer
+            lda.b kTmpPtrL+1
+            inc A
+            sta.b kTmpPtrL+1
+            jmp @loop_block
+        @loop_block_end:
+        ; check if last bank
+        sep #$20
+        lda.b kTmpPtrL+2
+        cmp.w _mem_root_t.bank_last,X
+        beq @loop_bank_end
+        ; initialize inode_next of node
+        lda.b kTmpPtrL+2
+        inc A
+        xba
+        lda.w _mem_root_t.page_first,X
+        rep #$20
+        sta [kTmpPtrL],Y
+        ; increment pointer
+        lda.b kTmpPtrL+2
+        inc A
+        sta.b kTmpPtrL+2
+        ; reset first page
+        lda.w _mem_root_t.page_first,X
+        xba
+        and #$FF00
+        sta.b kTmpPtrL
+        jmp @loop_bank
+    @loop_bank_end:
     rts
 
 ; $04,S: fs_device_instance_t* device
