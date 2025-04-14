@@ -2,7 +2,7 @@
 
 .BANK $00 SLOT "ROM"
 .ORG $0000
-.SECTION "KMainVectors" FORCE
+.SECTION "KMainVectors" FREE
 
 ; Called by SNES' IRQ timer.
 ; In charge of process switching.
