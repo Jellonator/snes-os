@@ -95,6 +95,9 @@ _test_valid_path5:
 _test_fs_mount_temp:
     .db "tmp\0"
 
+_test_path_rom1:
+    .db "/static/foo\0"
+
 .MACRO .StartGroup ARGS groupname
     rep #$10
     ldy #@@@@@\.\@n
@@ -685,16 +688,16 @@ shTest
     .EndGroup
     .StartGroup "FS Device"
         phb
-        .ChangeDataBank bankbyte(kfsDeviceStatic)
-        ldx #loword(kfsDeviceStatic)
+        .ChangeDataBank bankbyte(kfsDeviceStaticPath)
+        ldx #loword(kfsDeviceStaticPath)
         jsl kfsFindDevicePointer
         .CheckYEq loword(kfsDeviceInstanceTable) + _sizeof_fs_device_instance_t
         rep #$30
-        ldx #loword(kfsDeviceTemp)
+        ldx #loword(kfsDeviceTempPath)
         jsl kfsFindDevicePointer
         .CheckYEq loword(kfsDeviceInstanceTable)
         rep #$30
-        ldx #loword(kfsDeviceHome)
+        ldx #loword(kfsDeviceHomePath)
         jsl kfsFindDevicePointer
         .CheckYEq loword(kfsDeviceInstanceTable) + (_sizeof_fs_device_instance_t * 2)
         plb
@@ -702,6 +705,15 @@ shTest
         ldx #loword(_teststr1)
         jsl kfsFindDevicePointer
         .CheckYEq 0
+    .EndGroup
+    .StartGroup "FS Open"
+        phb
+        ldx #loword(_test_path_rom1)
+        jsl fsOpen
+        rep #$30
+        txa
+        plb
+        .CheckANeq 0
     .EndGroup
 
     jsl procExit

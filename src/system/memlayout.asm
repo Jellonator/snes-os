@@ -2,6 +2,7 @@
 
 .BASE $00
 
+; First 8B of zeropage are reserved and may be modified by system functions.
 .RAMSECTION "ZP" BANK 0 SLOT "SharedMemory" ORGA $0000 FORCE
     localinfo INSTANCEOF processDirect_t
 .ENDS
@@ -11,6 +12,7 @@
     kRendererProcess db
     kRendererDP dw
     kRendererDB db
+    kTmpPtrL dl
 .ENDS
 
 .RAMSECTION "7E" BANK $7E SLOT "ExtraMemory" ORGA $2000 FORCE

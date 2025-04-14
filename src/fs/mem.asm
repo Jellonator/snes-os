@@ -1,11 +1,105 @@
 .include "base.inc"
 
+; Definitions for in-memory (RAM) filesystem device
+
 .BANK $01 SLOT "ROM"
 .SECTION "KFSMem" FREE
 
+; directory entry
+.STRUCT _mem_direntry_t ; SIZE 16
+    blockId dw ; if blockId == 0, then end.
+    name ds 14
+.ENDST
+
+; inode structure
+.STRUCT _mem_inode_t
+    type dw
+    nlink dw
+    size dw
+    _reserved dsw 5
+    .UNION file
+        ; first 192 bytes of data are stored directly in the inode
+        directData ds 192 ; up to 192B of data
+        ; direct blocks of data
+        directBlocks dsw 16 ; up to 4K of data
+        ; indirect blocks storing inode IDs of data
+        indirectBlocks dsw 4 ; up to 128K data
+        _reserved dsw 4
+    .NEXTU dir
+        ; list of directory entries
+        dirent INSTANCEOF _mem_direntry_t 15
+    .ENDU
+.ENDST
+
+; inode* = $010000*BANK + $0100*inodeId
+
+; root structure
+; .STRUCT _mem_root_t
+
+; .ENDST
+
+; $06,S: fs_device_instance_t* device
+; B,Y: header
+_memfs_clear_device_instance:
+    rep #$20
+    lda #'M' | ('E' << 8)
+    sta.w $0000,Y
+    lda #'M' | (0 << 8)
+    sta.w $0002,Y
+    rts
+
+; $04,S: fs_device_instance_t* device
+_memfs_init:
+    phb
+    rep #$30
+    lda 1+$04,S
+    tax
+    ; set data bank to first bank
+    sep #$20
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+    pha
+    plb
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+    xba
+    lda #0
+    tay ; Y = first_bank:first_page:00
+    ; check if magic number doesn't match
+    rep #$20
+    lda.w $0000,Y
+    cmp #'M' | ('E' << 8)
+    bne @magicnum_mismatch
+    lda.w $0002,Y
+    cmp #'M' | (0 << 8)
+    bne @magicnum_mismatch
+    jmp @magicnum_end
+    @magicnum_mismatch:
+        ; clear data
+        jsr _memfs_clear_device_instance
+    @magicnum_end:
+    ; success
+    plb
+    rtl
+
+_memfs_free:
+    rtl
+
+_memfs_lookup:
+    rep #$30
+    ldx #$1234
+    rtl
+
+_memfs_read:
+    rtl
+
+_memfs_write:
+    rtl
+
 .DSTRUCT KFS_DeviceType_Mem INSTANCEOF fs_device_template_t VALUES
     fsname .db "MEM\0"
-    
+    init   .dw _memfs_init
+    lookup .dw _memfs_lookup
+    read   .dw _memfs_read
+    write  .dw _memfs_write
 .ENDST
 
 ; _magicNum:
