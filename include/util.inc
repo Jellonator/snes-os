@@ -207,38 +207,54 @@
     .ENDIF
 .ENDM
 
-; Maximum of A register and value, signed
-.MACRO .AMAX
-    cmp \1
-    bpl @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+; Generic signed MAXIMUM
+.MACRO .AMAX ARGS method arg
+    sec
+    .g_instruction sbc, method, arg
+    bvs @@@@@@\.\@invert
+    bpl @@@@@@\.\@restore
+@@@@@@\.\@load:
+    .g_instruction lda, method, arg
+    bra @@@@@@\.\@end
+@@@@@@\.\@invert:
+    bpl @@@@@@\.\@load
+@@@@@@\.\@restore:
+    clc
+    .g_instruction adc, method, arg
+@@@@@@\.\@end:
 .ENDM
 
-; Minimum of A register and value, signed
-.MACRO .AMIN
-    cmp \1
-    bmi @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+; Generic signed MINIMUM
+.MACRO .AMIN ARGS method, arg
+    sec
+    .g_instruction sbc, method, arg
+    bvs @@@@@@\.\@invert
+    bmi @@@@@@\.\@restore
+@@@@@@\.\@load:
+    .g_instruction lda, method, arg
+    bra @@@@@@\.\@end
+@@@@@@\.\@invert:
+    bmi @@@@@@\.\@load
+@@@@@@\.\@restore:
+    clc
+    .g_instruction adc, method, arg
+@@@@@@\.\@end:
 .ENDM
 
-; Maximum of A register and value, unsigned
-.MACRO .AMAXU
-    .IF !( \3 )
-        cmp \1
-    .ENDIF
+; Generic unsigned MAXIMUM
+.MACRO .AMAXU ARGS method, addr
+    .g_instruction cmp, method, addr
     bcs @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+        .g_instruction lda, method, addr
+    @@@@@\.\@:
 .ENDM
 
-; Minimum of A register and value, unsigned
-.MACRO .AMINU
-    cmp \1
+; Generic unsigned MINIMUM
+.MACRO .AMINU ARGS method, addr
+    .g_instruction cmp, method, addr
     bcc @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+        .g_instruction lda, method, addr
+    @@@@@\.\@:
 .ENDM
 
 ; Calculate the absolute value of A
