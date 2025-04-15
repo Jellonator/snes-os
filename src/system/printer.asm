@@ -182,7 +182,7 @@ vUpdatePrinter:
     bne +
     ldx #0
     +:
-    lda kTermBuffer,X
+    lda.w kTermBuffer,X
     and #$00FF
     cmp #'\n'
     bne @putchar

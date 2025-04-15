@@ -91,6 +91,8 @@ kInitialize2__:
     stz.w loword(kJoy1Held)
     stz.w loword(kJoy1Press)
     stz.w loword(kJoy1Raw)
+; filesystem init
+    jsl kfsInit__
 ; re-enable IRQ/NMI
     rep #$20
     lda #128 ; choose close to center of screen to
@@ -107,7 +109,6 @@ kInitialize2__:
     lda #%00001111
     sta.l INIDISP
 ; spawn test process
-    ; .CreateReadyProcess KTestProgram__, 64, 0
     .CreateReadyProcess os_shell, 64, 0, os_shell@n
 ; Finally, just become an infinite loop as process 1
     - jsl procReschedule

@@ -1,55 +1,133 @@
 .DEFINE FS_BLOCK_SIZE 256
 
+.DEFINE FS_INODE_TYPE_EMPTY 0
 .DEFINE FS_INODE_TYPE_FILE 1
 .DEFINE FS_INODE_TYPE_DIR 2
+.DEFINE FS_INODE_TYPE_MOUNT 3
+
 .DEFINE FS_MAX_FILENAME_LEN 14
 
 .DEFINE FS_DEVICE_NULL 0
-.DEFINE FS_DEVICE_SRAM 1
+.DEFINE FS_DEVICE_SRAM 1 ; SRAM device
+.DEFINE FS_DEVICE_ROM 2 ; ROM device
 
-.DEFINE FS_HFLAG_RDONLY $01 ; readonly filesystem, e.g. one defined in ROM
+.DEFINE FS_TABLE_FLAG_OPEN $01
 
-; .STRUCT fs_sram_header_t SIZE 256
-;     magicnum ds 4 ; magic number for filesystem
-;     device db
-;     flags db
-;     nBanks dw ; number of banks
-;     nBlocksPerBank dw ; number of blocks in each bank
-;     nBlocks dw ; = nBanks * nBlocksPerBank
-;     nFreeMaskBytes dw ; number of bytes used for free mask (up to 8K)
-;     nMaskBlocks dw ; number of blocks used for mask. If 0, then mask is entirely contained in filesystem_t
-;     firstInodeBlock dw ; First inode block
-;     nInodeBlocks dw ; number of inode blocks
-;     nUsedInodeBlocks dw ; number of used inodes
-;     firstDataBlock dw ; first block used for data
-;     nDataBlocks dw ; number of data blocks
-;     nUsedDataBLocks dw ; number of used data blocks
-; .ENDST
-; .define filesystem_sram_t.rootDir 64 ; 128 bytes for root directory info
-; ; theoretically need up to 32 blocks of 256 bytes to represent entire 24bit addressable space
-; .define filesystem_sram_t.maskData 64 ; 64 bytes for mask (only 32b needed per entire 64K bank)
+.DEFINE FS_TABLE_MODE_READ $80
+.DEFINE FS_TABLE_MODE_WRITE $40
+.DEFINE FS_TABLE_MODE_RDWR $C0
 
-; .STRUCT fs_sram_direntry_t SIZE 16
-;     blockId dw ; if blockId == 0, then end.
-;     name ds 14 ; if name[0] == $1F, then blockId is next direntry.
-;     ; Entries after null entry this one will be ignored, so it should be last.
-; .ENDST
+.DEFINE FS_OFT_SIZE 64
+.DEFINE FS_DEVICE_TYPE_MAX_COUNT 8
+.DEFINE FS_DEVICE_INSTANCE_MAX_COUNT 8
 
-; .STRUCT fs_sram_inode_t SIZE 256
-;     type dw
-;     nlink dw
-;     size dw
-;     _reserved dsw 5
-;     .UNION file
-;         ; first 192 bytes of data are stored directly in the inode
-;         directData ds 192 ; up to 192B of data
-;         ; direct blocks of data
-;         directBlocks dsw 16 ; up to 4K of data
-;         ; indirect blocks storing inode IDs of data
-;         indirectBlocks dsw 4 ; up to 128K data
-;         _reserved dsw 4
-;     .NEXTU dir
-;         ; list of directory entries
-;         dirent INSTANCEOF fs_sram_directory_t 15
-;     .ENDU
-; .ENDST
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;         FILESYSTEM DEFINES         ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Defines a device - interaction with filesystem and file handles
+.STRUCT fs_device_template_t
+    ; name of the filesystem
+    fsname ds 4
+    ; Initialize filesystem
+    ; void init([s16]fs_device_instance_t *dev);
+    init dw
+    ; Cleanup filesystem
+    ; void free([s16]fs_device_instance_t *dev);
+    free dw
+    ; Get inode from path
+    ; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
+    lookup dw
+    ; Read from file into buffer
+    ; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+    read dw
+    ; Write data from buffer into file
+    ; [a16]bool write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+    write dw
+.ENDST
+
+.STRUCT fs_device_instance_t
+    ; device template - defines functionality
+    template dw
+    ; mount point
+    mount_name ds 14
+    ; custom data, depends on device
+    data ds 16
+.ENDST
+
+.STRUCT fs_handle_instance_t
+    state db
+    fileptr dw
+    device dw
+    inode dw
+.ENDST
+
+.STRUCT fs_device_instance_mem_data_t SIZE 16
+    bank_first db
+    bank_last db
+    page_first db
+    page_last db
+    blocks_per_bank db
+    num_banks db
+    blocks_total dw
+.ENDST
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;   FILESYSTEM SPECIFIC STUFF BELOW  ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; directory entry
+.STRUCT fs_memdev_direntry_t ; SIZE 16
+    blockId dw ; if blockId == 0, then end.
+    name ds 14
+.ENDST
+
+; inode structure
+; inodes form a linked list, to make allocating and releasing them fast.
+.STRUCT fs_memdev_inode_t SIZE 256
+    type dw
+    nlink dw
+    size dsw 2
+    inode_next dw
+    _reserved dsw 3
+    .UNION file
+        ; first 192 bytes of data are stored directly in the inode
+        directData ds 192 ; up to 192B of data
+        ; direct blocks of data
+        directBlocks dsw 16 ; up to 4K of data
+        ; indirect blocks storing inode IDs of data
+        indirectBlocks dsw 4 ; up to 128K data
+        _reserved dsw 4
+    .NEXTU dir
+        ; list of directory entries
+        _reserved ds 16
+        dirent INSTANCEOF fs_memdev_direntry_t 14
+    .ENDU
+.ENDST
+
+; inode* = $0100*inodeId
+
+; root structure
+.STRUCT fs_memdev_root_t SIZE 256
+    magicnum ds 4
+; layout info
+    bank_first db
+    bank_last db
+    page_first db
+    page_last db
+    num_blocks_per_bank db
+    num_banks db
+    num_blocks_total dw
+; inode layout
+    ; number of used inodes
+    num_used_inodes dw
+    ; total number of inodes
+    num_total_inodes dw
+    ; number of free inodes
+    num_free_inodes dw
+    ; first free inode in linked list
+    inode_next_free dw
+; directory
+    _reserved ds 12
+    dirent INSTANCEOF fs_memdev_direntry_t 14
+.ENDST

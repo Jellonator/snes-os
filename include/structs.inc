@@ -14,3 +14,11 @@
     plName dl
     ; _pad dw
 .ENDST
+
+; A sprite object
+.STRUCT object_t
+    pos_x db
+    pos_y db
+    tile db
+    flags db ; vhoopppN
+.ENDST

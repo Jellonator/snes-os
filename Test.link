@@ -1,10 +1,16 @@
 [objects]
+obj/fs/data.obj
+obj/fs/core.obj
+obj/fs/mem.obj
+obj/fs/path.obj
 obj/lib/lib.obj
+obj/shell/cat.obj
 obj/shell/echo.obj
 obj/shell/ps.obj
 obj/shell/shell.obj
 obj/system/init.obj
 obj/system/main.obj
+obj/system/memlayout.obj
 obj/system/memory.obj
 obj/system/printer.obj
 obj/system/process.obj
