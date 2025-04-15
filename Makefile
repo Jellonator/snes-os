@@ -13,6 +13,7 @@ SOURCES  := fs/core.asm\
 			fs/mem.asm\
 			fs/path.asm\
 			lib/lib.asm\
+			shell/cat.asm\
 			shell/echo.asm\
 			shell/ps.asm\
 			shell/shell.asm\

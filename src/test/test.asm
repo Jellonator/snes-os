@@ -861,7 +861,7 @@ shTest
         rep #$20
         pla
         ; lda #0
-        ; sta.l kTempBuffer+4
+        ; sta.l kTempBuffer+0
         ; .PEAL _teststrempty
         ; jsl stringCmpL
         ; .ACCU 8
