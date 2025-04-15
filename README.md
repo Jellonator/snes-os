@@ -3,10 +3,6 @@ SNES-OS/Snow-OS (working on title)
 
 An operating system for the Super Nintendo Entertainment System/Super Famicom.
 
-Created by Jocelyn "Jellonator" Beedie
-
-Try it out here: https://jellonator.github.io/snes-os/
-
 ## Building
 
 You must have Python 3 installed and in your PATH. Python is required for certain pre-processing steps, such as transforming image files into a format readable by the SNES.
