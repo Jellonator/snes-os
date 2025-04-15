@@ -321,6 +321,7 @@ _memfs_read:
     sbc.l $7E0000 + fs_handle_instance_t.fileptr,X
     .AMINU P_DIR BYTES_TO_READ
     sta.b BYTES_TO_READ
+    cmp #0
     bne +
         pld
         lda #0

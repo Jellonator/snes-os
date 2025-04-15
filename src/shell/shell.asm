@@ -64,6 +64,7 @@ ShellBackgroundData__:
 
 ShellCommandList:
     ; .DefCommand _sh_clear
+    .DefCommand shCat
     .DefCommand shEcho
     .DefCommand _sh_help
     ; .DefCommand _sh_kill
@@ -92,6 +93,7 @@ ShellCommandList:
 .ENUMID STATE_UPPER
 .ENUMID STATE_CAPS
 .ENUMID STATE_SYMBOLS
+.ENUMID STATE_END
 
 _char_addresses:
     .dw __ShellSymLower
@@ -100,9 +102,18 @@ _char_addresses:
     .dw __ShellSymUpper
     .dw _ShellSymSymbols
 
+_state_next:
+    .db STATE_UPPER
+    .db STATE_UPPER
+    .db STATE_SYMBOLS
+    .db STATE_SYMBOLS
+    .db STATE_LOWER
+
 .DEFINE SHFLAG_UPDATE_CHARS $80
 
 .DEFINE CHAR_BUFFER_SIZE 28*10
+
+.DEFINE KEYBOARD_INPUT_COLUMNS 10
 
 ; variables
 .ENUM $10
@@ -145,7 +156,7 @@ _get_selection_vaddr:
     cmp #20
     bcs +
         ; 0-19
-        cmp #10
+        cmp #KEYBOARD_INPUT_COLUMNS
         bcs ++
             ; 0-9
             asl
@@ -155,7 +166,7 @@ _get_selection_vaddr:
         ++:
             ; 10-19
             sec
-            sbc #10
+            sbc #KEYBOARD_INPUT_COLUMNS
             asl
             clc
             adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (1 + 1)) + 2
@@ -259,7 +270,7 @@ _shell_update_charset:
     .REPT 4 INDEX i
         lda #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (i + 1)) + 2
         sta.l VMADDR
-        ldy #10
+        ldy #KEYBOARD_INPUT_COLUMNS
     -:
         lda.l (__ShellSymLower&$FF0000),X
         and #$00FF
@@ -804,7 +815,7 @@ _shell_update:
         sep #$20
         lda.b bSelectPos
         clc
-        adc #10
+        adc #KEYBOARD_INPUT_COLUMNS
         cmp #40
         bcc ++
             sec
@@ -819,12 +830,23 @@ _shell_update:
         sep #$20
         lda.b bSelectPos
         sec
-        sbc #10
+        sbc #KEYBOARD_INPUT_COLUMNS
         bpl ++
             clc
             adc #40
         ++:
         sta.b bSelectPos
+    +:
+    rep #$20
+    lda.l kJoy1Press
+    bit #JOY_SELECT
+    beq +
+        sep #$30
+        ldx.b bState
+        lda.l _state_next,X
+        sta.b bState
+        lda #SHFLAG_UPDATE_CHARS
+        tsb.b bUpdateFlags
     +:
     jsr _shell_push_select_pos
     ; backspace
