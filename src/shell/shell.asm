@@ -82,6 +82,9 @@ ShellCommandList:
 .DEFINE BG2_SHELLBACK_CHAR_BASE_ADDR $2000
 .DEFINE BG4_DISPTEXT_CHAR_BASE_ADDR $1000
 ; BG4 refers to data from kprint.asm
+; object data address
+.DEFINE OBJ1_ICON_BASE_ADDR $4000
+.DEFINE OBJ2_ICON_BASE_ADDR $5000
 
 .DEFINE DEADZONE_LEFT 2 ; screen offset from left
 .DEFINE MAX_LINE_WIDTH 28 ; maximum of 28 characters per row
@@ -128,6 +131,8 @@ _state_next:
     ; draw buffer; 4-byte instructions of VMEM addr[dw]+Value[dw] pairs
     wLenDrawBuf dw
     pwDrawBuf dw
+    ; timer
+    bTimer db
 .ENDE
 
 _shell_hide_ui:
@@ -147,6 +152,48 @@ _shell_show_ui:
     lda #SHFLAG_UPDATE_CHARS
     sta.b bUpdateFlags
     rts
+
+_get_selection_position:
+    ; BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (i + 1)) + 2
+    sep #$20
+    lda.b bSelectPos
+    cmp #20
+    bcs +
+        ; 0-19
+        cmp #KEYBOARD_INPUT_COLUMNS
+        bcs ++
+            ; 0-9
+            xba
+            lda #0
+            xba
+            rts
+        ++:
+            ; 10-19
+            xba
+            lda #1
+            xba
+            sec
+            sbc #KEYBOARD_INPUT_COLUMNS
+            rts
+    +:
+        ; 20-39
+        cmp #3*KEYBOARD_INPUT_COLUMNS
+        bcs ++
+            ; 20-29
+            xba
+            lda #2
+            xba
+            sec
+            sbc #2*KEYBOARD_INPUT_COLUMNS
+            rts
+        ++:
+            ; 30-39
+            xba
+            lda #3
+            xba
+            sec
+            sbc #3*KEYBOARD_INPUT_COLUMNS
+            rts
 
 _get_selection_vaddr:
     ; BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (i + 1)) + 2
@@ -173,11 +220,11 @@ _get_selection_vaddr:
             rts
     +:
         ; 20-39
-        cmp #30
+        cmp #3*KEYBOARD_INPUT_COLUMNS
         bcs ++
             ; 20-29
             sec
-            sbc #20
+            sbc #2*KEYBOARD_INPUT_COLUMNS
             asl
             clc
             adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (2 + 1)) + 2
@@ -185,7 +232,7 @@ _get_selection_vaddr:
         ++:
             ; 30-39
             sec
-            sbc #30
+            sbc #3*KEYBOARD_INPUT_COLUMNS
             asl
             clc
             adc #BG1_SHELLTEXT_TILE_BASE_ADDR + (64 * (3 + 1)) + 2
@@ -315,6 +362,7 @@ _shell_push_current_char:
 
 _shell_push_char:
     .ACCU 8
+    stz.b bTimer
     pha
     rep #$30
     lda.b wLenStrBuf
@@ -567,6 +615,7 @@ _shell_push_space:
     rts
 
 _shell_enter:
+    stz.b bTimer
 ; next row
     phb
     .ChangeDataBank $7E
@@ -589,6 +638,7 @@ _shell_enter:
     rts
 
 _shell_backspace:
+    stz.b bTimer
     rep #$30
     lda.b wLenStrBuf
     bne +
@@ -677,6 +727,20 @@ _shell_init:
     pla
     pla
     pla
+    ; set sprites
+    pea OBJ1_ICON_BASE_ADDR
+    pea 16 * 4 * 8 * 4 ; 16x4, 4bpp
+    sep #$20
+    lda #bankbyte(sprites@ShellUISprites__)
+    pha
+    pea loword(sprites@ShellUISprites__)
+    jsl vCopyMem
+    sep #$20 ; 8 bit A
+    pla
+    rep #$20 ; 16 bit A
+    pla
+    pla
+    pla
     ; copy palette
     pea $6000 | bankbyte(ShellTextPalette__)
     pea loword(ShellTextPalette__)
@@ -694,6 +758,12 @@ _shell_init:
     rep #$20
     pla
     pla
+    pea $8000 | bankbyte(ShellTextPalette__)
+    pea loword(ShellTextPalette__)
+    jsl vCopyPalette16
+    rep #$20
+    pla
+    pla
     ; update mem registers
     sep #$20
     lda #(BG1_SHELLTEXT_TILE_BASE_ADDR >> 8) | %00
@@ -702,8 +772,10 @@ _shell_init:
     sta.l BG2SC
     lda #(BG4_DISPTEXT_CHAR_BASE_ADDR >> 12) | (BG2_SHELLBACK_CHAR_BASE_ADDR >> 8)
     sta.l BG12NBA
-    lda #%00001011
+    lda #%00011011
     sta.l SCRNDESTM
+    lda #%00000000 | (OBJ1_ICON_BASE_ADDR >> 13) | ((OBJ2_ICON_BASE_ADDR - OBJ1_ICON_BASE_ADDR - $1000) >> 9)
+    sta.l OBSEL
     ; initialize other
     pea CHAR_BUFFER_SIZE+1
     jsl memAlloc
@@ -738,6 +810,9 @@ _shell_init:
     pla
     pla
     pla
+; upload sprites
+    jsl vClearSpriteData__
+    jsl vUploadSpriteData__
 ; end
     ; re-enable rendering and interrupts
     sep #$20 ; 8b A
@@ -774,6 +849,8 @@ _shell_render:
         lda #$01
         sta.l MDMAEN
     @skipdrawbuf:
+    ; upload sprites
+    jsl vUploadSpriteData__
     rtl
 
 _shell_update:
@@ -878,6 +955,51 @@ _shell_update:
         jsr _shell_enter
     +:
     sep #$20
+    ; set typing indicator
+    inc.b bTimer
+    lda #25*8 - 1
+    sta.l kSpriteTable.1.pos_y
+    lda.b bTimer
+    bit #%00100000
+    beq +
+        lda #$F0
+        sta.l kSpriteTable.1.pos_y
+    +:
+    lda.b wCharLinePos
+    inc A
+    inc A
+    asl
+    asl
+    asl
+    sta.l kSpriteTable.1.pos_x
+    lda #$04
+    sta.l kSpriteTable.1.tile
+    lda #%00110000
+    sta.l kSpriteTable.1.flags
+    ; set selection indicator
+    jsr _get_selection_position
+    sep #$20
+    inc A
+    asl
+    asl
+    asl
+    asl
+    dec A
+    sta.l kSpriteTable.2.pos_x
+    xba
+    inc A
+    asl
+    asl
+    asl
+    asl
+    dec A
+    sta.l kSpriteTable.2.pos_y
+    lda #$24
+    sta.l kSpriteTable.2.tile
+    lda #%00110000
+    sta.l kSpriteTable.2.flags
+    lda #%00001000
+    sta.l kSpriteTableHigh+0
     .RestoreInt__
     ; wait for NMI and reschedule
     jsl procWaitNMI

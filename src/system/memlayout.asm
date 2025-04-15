@@ -4,7 +4,7 @@
 
 ; First 8B of zeropage are reserved and may be modified by system functions.
 .RAMSECTION "ZP" BANK 0 SLOT "SharedMemory" ORGA $0000 FORCE
-    localinfo INSTANCEOF processDirect_t
+    kReservedZP ds 8
 .ENDS
 
 .RAMSECTION "Shared" BANK 0 SLOT "SharedMemory" ORGA $0008 FORCE
@@ -40,6 +40,8 @@
     kTermOffY dw ; Y-offset of terminal, used for scrolling
     kTermBufferCount dw ; number of characters to be printed
     kTermBufferLoop db ; if non-zero: write bytes from kTermBufferCount to
+    kSpriteTable INSTANCEOF object_t 128
+    kSpriteTableHigh dsb 32
 ; buffer size, then from 0 to kTermBufferCount
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
     kTempBuffer ds 256 ; generic temporary buffer
