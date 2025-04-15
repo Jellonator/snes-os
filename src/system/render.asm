@@ -288,4 +288,45 @@ vSetRenderer:
     sta.l kRendererProcess
     rtl
 
+vClearSpriteData__:
+    rep #$30
+    phd
+    lda #0
+    tcd
+    phb
+    .ChangeDataBank $7E
+    .REPT 32/2 INDEX i
+        stz.w kSpriteTableHigh + (i*2)
+    .ENDR
+    sep #$20
+    lda #$F0
+    .REPT 128 INDEX i
+        sta.w kSpriteTable.{i+1}.pos_y
+    .ENDR
+    plb
+    pld
+    rtl
+
+vUploadSpriteData__:
+; upload sprite data
+    rep #$20 ; 16 bit A
+    lda #0
+    sta.l OAMADDR
+    lda #512+32
+    sta.l DMA0_SIZE
+    lda.w #kSpriteTable
+    sta.l DMA0_SRCL
+    sep #$20 ; 8 bit A
+    lda #$7E
+    sta.l DMA0_SRCH
+    ; Absolute address, auto increment, 1 byte at a time
+    lda #%00000000
+    sta.l DMA0_CTL
+    ; Write to OAM
+    lda #$04
+    sta.l DMA0_DEST
+    lda #$01
+    sta.l MDMAEN
+    rtl
+
 .ENDS

@@ -71,13 +71,14 @@
 .DSTRUCT INSTANCEOF fs_memdev_inode_t VALUES
     type .dw FS_INODE_TYPE_FILE
     nlink .dw 1
-    size .dw 91, 0
+    size .dw 192, 0
     inode_next .dw $0000
     file.directData:
         .db "According to all known laws of aviation, "
         .db "there is no way that a bee should be able to fly. "
-        ; .db "Its wings are too small to get its fat little body off the ground. "
-        ; .db "The bee, of course, flies anyways. Because bees don't care what humans think is impossible.\0"
+        .db "Its wings are too small to get its fat little body off the ground. "
+        .db "The bee, of course, flies anyways."
+        ;" Because bees don't care what humans think is impossible.\0"
 .ENDST
 
 .ENDS
