@@ -228,7 +228,8 @@ memPrintDump:
 ; change data bank
     rep #$30 ; 16b AXY
     phb ; +1 (2)
-    
+    lda #0
+    sta.b $10
 ; begin
     ldy #$0000 ; mem block ptr in $7F
 @loop:
@@ -266,6 +267,17 @@ memPrintDump:
     ply
     phy
     ; adc.w memblock_t.mlength,Y
+    lda.w memblock_t.mPID,Y
+    and #$00FF
+    beq +
+        ; quick detour: count used memory
+        lda.w memblock_t.mnext,Y
+        sec
+        sbc $01,S
+        clc
+        adc.b $10
+        sta.b $10
+    +:
     lda.w memblock_t.mnext,Y
     dec A
     .ChangeDataBank $7E
@@ -286,11 +298,37 @@ memPrintDump:
     tay
     bne @loop
 ; end
+    .ChangeDataBank $7E
+    rep #$30
+    ldx #loword(kTempBuffer)
+    lda.b $10
+    jsl writeU16
+    ldy #loword(kTempBuffer)
+    jsl kPutString
+    phk
+    plb
+    ldy #loword(@str_mem_used)
+    jsl kPutString
+    .ChangeDataBank $7E
+    rep #$30
+    ldx #loword(kTempBuffer)
+    lda #0
+    sec
+    sbc.b $10
+    jsl writeU16
+    ldy #loword(kTempBuffer)
+    jsl kPutString
+    phk
+    plb
+    ldy #loword(@str_mem_free)
+    jsl kPutString
     ; restore bank
     plb ; -1 (1)
     ; restore interrupts
     sep #$20 ; 8b A
     .RestoreInt__ ; -1 (0)
     rtl
+@str_mem_used: .db " bytes used.\n\0"
+@str_mem_free: .db " bytes free.\n\0"
 
 .ENDS

@@ -1,65 +1,260 @@
-; Maximum of A register and memory location, signed
-.MACRO .AMAX
-    cmp \1
-    bpl @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+; as a general rule, macro labels should begin with @@@@@
+; that way, these labels don't mess with those in code
+
+; META INSTRUCTIONS
+
+; BRANCH EQUAL LONG
+.MACRO beql ARGS addr
+    bne +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH NOT EQUAL LONG
+.MACRO bnel ARGS addr
+    beq +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH CARRY CLEAR LONG
+.MACRO bccl ARGS addr
+    bcs +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH CARRY SET LONG
+.MACRO bcsl ARGS addr
+    bcc +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH OVERFLOW CLEAR LONG
+.MACRO bvcl ARGS addr
+    bvs +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH OVERFLOW SET LONG
+.MACRO bvsl ARGS addr
+    bvc +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH MINUS LONG / BRANCH NEGATIVE SET LONG
+.MACRO bmil ARGS addr
+    bpl +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH PLUS LONG / BRANCH NEGATIVE CLEAR LONG
+.MACRO bpll ARGS addr
+    bmi +++++
+        jmp addr
+    +++++:
+.ENDM
+; BRANCH LESS THAN UNSIGNED
+.MACRO blsu ARGS addr
+    bcc addr
+.ENDM
+; BRANCH LESS THAN SIGNED
+.MACRO blss ARGS addr
+    bmi addr
+.ENDM
+; BRANCH LESS THAN OR EQUAL UNSIGNED
+.MACRO bleu ARGS addr
+    bcc addr
+    beq addr
+.ENDM
+; BRANCH LESS THAN OR EQUAL SIGNED
+.MACRO bles ARGS addr
+    bmi addr
+    beq addr
+.ENDM
+; BRANCH GREATER THAN UNSIGNED
+.MACRO bgru ARGS addr
+    beq +++++
+        bcs addr
+    +++++:
+.ENDM
+; BRANCH GREATER THAN SIGNED
+.MACRO bgrs ARGS addr
+    beq +++++
+        bpl addr
+    +++++:
+.ENDM
+; BRANCH GREATER THAN OR EQUAL UNSIGNED
+.MACRO bgeu ARGS addr
+    bcs addr
+.ENDM
+; BRANCH GREATER THAN OR EQUAL SIGNED
+.MACRO bges ARGS addr
+    bpl addr
+.ENDM
+; BRANCH LESS THAN UNSIGNED LONG
+.MACRO blsul ARGS addr
+    bccl addr
+.ENDM
+; BRANCH LESS THAN SIGNED LONG
+.MACRO blssl ARGS addr
+    bmil addr
+.ENDM
+; BRANCH LESS THAN OR EQUAL UNSIGNED LONG
+.MACRO bleul ARGS addr
+    bccl addr
+    beql addr
+.ENDM
+; BRANCH LESS THAN OR EQUAL SIGNED LONG
+.MACRO blesl ARGS addr
+    bmil addr
+    beql addr
+.ENDM
+; BRANCH GREATER THAN UNSIGNED LONG
+.MACRO bgrul ARGS addr
+    beq +++++
+        bcsl addr
+    +++++:
+.ENDM
+; BRANCH GREATER THAN SIGNED LONG
+.MACRO bgrsl ARGS addr
+    beq +++++
+        bpll addr
+    +++++:
+.ENDM
+; BRANCH GREATER THAN OR EQUAL UNSIGNED LONG
+.MACRO bgeul ARGS addr
+    bcsl addr
+.ENDM
+; BRANCH GREATER THAN OR EQUAL SIGNED LONG
+.MACRO bgesl ARGS addr
+    bpll addr
 .ENDM
 
-; Minimum of A register and memory location, signed
-.MACRO .AMIN
-    cmp \1
-    bmi @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+; GENERIC INSTRUCTIONS
+
+; Generic instruction types
+.ENUMID 0
+.ENUMID P_IMM
+.ENUMID P_ABS
+.ENUMID P_ABS_X
+.ENUMID P_ABS_Y
+.ENUMID P_ABS_IND
+.ENUMID P_ABS_INDL
+.ENUMID P_DIR
+.ENUMID P_DIR_X
+.ENUMID P_DIR_Y
+.ENUMID P_DIR_IND
+.ENUMID P_DIR_INDL
+.ENUMID P_DIR_X_IND
+.ENUMID P_DIR_IND_Y
+.ENUMID P_DIR_INDL_Y
+.ENUMID P_LONG
+.ENUMID P_LONG_X
+.ENUMID P_STACK
+.ENUMID P_STACK_IND_Y
+.ENUMID P_IMPLIED
+.ENUMID P_REL8
+.ENUMID P_REL16
+.ENUMID P_SRC_DEST
+
+; Generic Instruction invocation
+; Note that many instruction,method pairs are invalid.
+; Parameters:
+;   inst   - the instruction
+;   method - address mode
+;   arg    - address/value
+.MACRO .g_instruction ARGS inst method arg
+    .IF method == P_IMM
+        \1 #arg
+    .ELIF method == P_ABS
+        \1.w arg
+    .ELIF method == P_ABS_X
+        \1.w arg,X
+    .ELIF method == P_ABS_Y
+        \1.w arg,Y
+    .ELIF method == P_ABS_IND
+        \1.w (arg)
+    .ELIF method == P_ABS_INDL
+        \1.w [arg]
+    .ELIF method == P_DIR
+        \1.b arg
+    .ELIF method == P_DIR_X
+        \1.b arg,X
+    .ELIF method == P_DIR_Y
+        \1.b arg,Y
+    .ELIF method == P_DIR_IND
+        \1.b (arg)
+    .ELIF method == P_DIR_INDL
+        \1.b [arg]
+    .ELIF method == P_DIR_X_IND
+        \1.b (arg,X)
+    .ELIF method == P_DIR_IND_Y
+        \1.b (arg),Y
+    .ELIF method == P_DIR_INDL_Y
+        \1.b [arg],Y
+    .ELIF method == P_LONG
+        \1.l arg
+    .ELIF method == P_LONG_X
+        \1.l arg,X
+    .ELIF method == P_STACK
+        \1 arg,S
+    .ELIF method == P_STACK_IND_Y
+        \1 (arg,S),Y
+    .ELIF method == P_REL8 || method == P_REL16
+        \1 arg
+    .ELIF method == P_IMPLIED || method == P_SRC_DEST
+        .FAIL "Incompatible addressing mode"
+    .ELSE
+        .FAIL "Invalid addressing mode"
+    .ENDIF
 .ENDM
 
-; Maximum of A register and immediate value, signed
-.MACRO .AMAXI
-    cmp #\1
-    bpl @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
+; Generic signed MAXIMUM
+.MACRO .AMAX ARGS method arg
+    sec
+    .g_instruction sbc, method, arg
+    bvs @@@@@@\.\@invert
+    bpl @@@@@@\.\@restore
+@@@@@@\.\@load:
+    .g_instruction lda, method, arg
+    bra @@@@@@\.\@end
+@@@@@@\.\@invert:
+    bpl @@@@@@\.\@load
+@@@@@@\.\@restore:
+    clc
+    .g_instruction adc, method, arg
+@@@@@@\.\@end:
 .ENDM
 
-; Minimum of A register and immediate value, signed
-.MACRO .AMINI
-    cmp #\1
-    bmi @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
+; Generic signed MINIMUM
+.MACRO .AMIN ARGS method, arg
+    sec
+    .g_instruction sbc, method, arg
+    bvs @@@@@@\.\@invert
+    bmi @@@@@@\.\@restore
+@@@@@@\.\@load:
+    .g_instruction lda, method, arg
+    bra @@@@@@\.\@end
+@@@@@@\.\@invert:
+    bmi @@@@@@\.\@load
+@@@@@@\.\@restore:
+    clc
+    .g_instruction adc, method, arg
+@@@@@@\.\@end:
 .ENDM
 
-; Maximum of A register and memory location, unsigned
-.MACRO .AMAXU
-    cmp \1
+; Generic unsigned MAXIMUM
+.MACRO .AMAXU ARGS method, addr
+    .g_instruction cmp, method, addr
     bcs @@@@@\.\@
-    lda \1
-@@@@@\.\@:
+        .g_instruction lda, method, addr
+    @@@@@\.\@:
 .ENDM
 
-; Minimum of A register and memory location, unsigned
-.MACRO .AMINU
-    cmp \1
+; Generic unsigned MINIMUM
+.MACRO .AMINU ARGS method, addr
+    .g_instruction cmp, method, addr
     bcc @@@@@\.\@
-    lda \1
-@@@@@\.\@:
-.ENDM
-
-; Maximum of A register and immediate value, unsigned
-.MACRO .AMAXUI
-    cmp #\1
-    bcs @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
-.ENDM
-
-; Minimum of A register and immediate value, unsigned
-.MACRO .AMINUI
-    cmp #\1
-    bcc @@@@@\.\@
-    lda #\1
-@@@@@\.\@:
+        .g_instruction lda, method, addr
+    @@@@@\.\@:
 .ENDM
 
 ; Calculate the absolute value of A
@@ -116,12 +311,12 @@
     rep #$20 ; 16 bit A
     lda #NBYTES
     sta.b <DMA0_SIZE
-    lda #loword(EmptyData)
+    lda #loword(vEmptyData__)
     sta.b <DMA0_SRCL
     lda #loword(ADDRL)
     sta.l WMADDL
     sep #$20 ; 8 bit A
-    lda #bankbyte(EmptyData)
+    lda #bankbyte(vEmptyData__)
     sta.b <DMA0_SRCH
     lda #bankbyte(ADDRL)
     sta.l WMADDH

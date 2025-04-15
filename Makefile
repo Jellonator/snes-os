@@ -8,12 +8,18 @@ AFLAGS   := -I include
 ALDFLAGS := -S -v
 PY       := python3
 
-SOURCES  := lib/lib.asm\
+SOURCES  := fs/core.asm\
+			fs/data.asm\
+			fs/mem.asm\
+			fs/path.asm\
+			lib/lib.asm\
+			shell/cat.asm\
 			shell/echo.asm\
 			shell/ps.asm\
 			shell/shell.asm\
 			system/init.asm\
 			system/main.asm\
+			system/memlayout.asm\
 			system/memory.asm\
 			system/printer.asm\
 			system/process.asm\
