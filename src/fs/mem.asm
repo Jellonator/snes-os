@@ -14,15 +14,17 @@ _memfs_clear_device_instance:
     lda #$0000
     tcd
     lda #'M' | ('E' << 8)
-    sta.w $0000,Y
+    sta.w fs_memdev_root_t.magicnum+0,Y
     lda #'M' | (0 << 8)
-    sta.w $0002,Y
+    sta.w fs_memdev_root_t.magicnum+2,Y
 ; set up layout (copy 8 bytes)
     .REPT 4 INDEX i
         lda.l $7E0000 + fs_device_instance_t.data + (i*2),X
-        sta.w $0004 + (i*2),Y
+        sta.w fs_memdev_root_t.bank_first + (i*2),Y
     .ENDR
 ; set up other data
+    lda #FS_INODE_TYPE_ROOT
+    sta.w fs_memdev_root_t.type,Y
     lda #1 ; first inode is header
     sta.w fs_memdev_root_t.num_used_inodes,Y
     lda.w fs_memdev_root_t.num_blocks_total,Y
@@ -129,10 +131,10 @@ _memfs_init:
     tay ; Y = first_bank:first_page:00
     ; check if magic number doesn't match
     rep #$20
-    lda.w $0000,Y
+    lda.w fs_memdev_root_t.magicnum+0,Y
     cmp #'M' | ('E' << 8)
     bne @magicnum_mismatch
-    lda.w $0002,Y
+    lda.w fs_memdev_root_t.magicnum+2,Y
     cmp #'M' | (0 << 8)
     bne @magicnum_mismatch
     jmp @magicnum_end
@@ -151,6 +153,33 @@ _memfs_free:
 ; path: $04,S
 ; dev: $07,S
 _memfs_lookup:
+    ; check if path is empty; if so, then return root node
+    phb
+    rep #$30
+    sep #$20
+    lda 1+$06,S
+    pha
+    plb
+    rep #$20
+    lda 1+$04,S
+    tax
+    jsl pathIsEmpty
+    .ACCU 8
+    cmp #0
+    beq @path_not_empty
+        rep #$20
+        lda 1+$07,S
+        tax
+        sep #$20
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+        xba
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+        rep #$20
+        tax
+        plb
+        rtl
+    @path_not_empty:
+    plb
     phb
     rep #$30
     lda 1+$07,S
@@ -208,7 +237,7 @@ _memfs_lookup:
         bne @loop_search
         ; name matched, check some stuff
         ; if NODE is FILE and TAIL(PATH) is EMPTY: return NODE
-        ; if NODE is DIR and TAIL(PATH) is EMPTY: FAIL
+        ; if NODE is DIR and TAIL(PATH) is EMPTY: return NODE
         ; if NODE is FILE and TAIL(PATH) is VALID: FAIL
         ; if NODE is DIR and TAIL(PATH) is VALID: search NODE
         ; PATH = TAIL(PATH)
@@ -264,9 +293,9 @@ _memfs_lookup:
             ; check type
             rep #$20
             lda.w fs_memdev_inode_t.type,Y
-            cmp #FS_INODE_TYPE_FILE
-            beq @found_inode
-                jmp @search_failed
+            ; cmp #FS_INODE_TYPE_FILE
+            ; beq @found_inode
+            ;     jmp @search_failed
             @found_inode:
                 txa
                 sep #$20
@@ -312,6 +341,20 @@ _memfs_read:
     sta.b kTmpPtrL2
     lda 2+$08,S
     sta.b kTmpPtrL2+2
+    ; check type
+    ldy #fs_memdev_inode_t.type
+    lda [kTmpPtrL],Y
+    cmp #FS_INODE_TYPE_FILE
+    beq +
+        ; read directory (or root as if it were a directory)
+        cmp #FS_INODE_TYPE_DIR
+        beql _memfs_read_dir
+        cmp #FS_INODE_TYPE_ROOT
+        beql _memfs_read_dir
+        ; not either, don't read anything
+        lda #0
+        rtl
+    +:
     ; check size
     lda 2+$04,S
     sta.b BYTES_TO_READ
@@ -354,6 +397,106 @@ _memfs_read:
     sta.l $7E0000 + fs_handle_instance_t.fileptr,X
     ; end
     lda.b BYTES_TO_READ
+    pld ; [-2, 0]
+    rtl
+
+; read from directory as if it were a file;
+; file names will be separated by null separators.
+; continuation of _memfs_read
+_memfs_read_dir:
+    .ACCU 16
+    .INDEX 16
+    .DEFINE BYTES_READ (kTmpBuffer+2)
+    .DEFINE FILEPTR (kTmpBuffer+4)
+    ; check size
+    lda 2+$04,S
+    sta.b BYTES_TO_READ
+    lda.l $7E0000 + fs_handle_instance_t.fileptr,X
+    sta.b FILEPTR
+    stz.b BYTES_READ
+    ; inc inode to directData+fileptr
+    lda.b kTmpPtrL
+    clc
+    adc #fs_memdev_inode_t.dir.dirent
+    clc
+    adc.l $7E0000 + fs_handle_instance_t.fileptr,X
+    sta.b kTmpPtrL
+    ldy #2
+    ; copy bytes
+    jmp @loop_copy_begin
+    @loop_copy:
+        ; decrement bytes to read, and end if no more bytes can be read
+        dec.b BYTES_TO_READ
+        inc.b BYTES_READ
+        beq @loop_copy_end
+    @loop_copy_begin:
+        ; if fileptr%16 == 14, then read in a null byte and increment.
+        ; this only comes into play with 14b long file names, but it must
+        ; be handled regardless.
+        ; also, exit loop if inode is null
+        lda.b FILEPTR
+        and #$000F
+        cmp #14
+        bne @loop_copy_not_eol
+            lda [kTmpPtrL],Y
+            cmp #0
+            beq @loop_copy_end
+            inc.b FILEPTR
+            inc.b FILEPTR
+            inc.b kTmpPtrL
+            inc.b kTmpPtrL
+            sep #$20
+            lda #'\n'
+            sta [kTmpPtrL2]
+            rep #$20
+            inc.b kTmpPtrL2
+            jmp @loop_copy
+        ; if fileptr%16 == 0, then end if inode is null, or fileptr >= 14*16
+    @loop_copy_not_eol:
+        cmp #14*16
+        bcs @loop_copy_end
+        cmp #0
+        bne @loop_copy_not_null
+            lda [kTmpPtrL]
+            cmp #0
+            beq @loop_copy_end
+            ; jmp @loop_copy
+    @loop_copy_not_null:
+        sep #$20
+        lda [kTmpPtrL],Y
+        cmp #0
+        bne +
+            lda #'\n'
+            sta [kTmpPtrL2]
+            rep #$20
+            inc.b kTmpPtrL
+            inc.b kTmpPtrL2
+            inc.b FILEPTR
+            jmp @loop_copy_loop_inc
+        +:
+        sta [kTmpPtrL2]
+        rep #$20
+        inc.b kTmpPtrL
+        inc.b kTmpPtrL2
+        inc.b FILEPTR
+        jmp @loop_copy
+        ; if byte was null, skip until (fileptr%16) is 0
+        @loop_copy_loop_inc:
+            lda.b FILEPTR
+            bit #$000F
+            beq @loop_copy
+            inc.b FILEPTR
+            inc.b kTmpPtrL
+            jmp @loop_copy_loop_inc
+    @loop_copy_end:
+    ; update fileptr
+    rep #$20
+    lda 2+$09,S
+    tax
+    lda.b FILEPTR
+    sta.l $7E0000 + fs_handle_instance_t.fileptr,X
+    ; end
+    lda.b BYTES_READ
     pld ; [-2, 0]
     rtl
     .UNDEFINE BYTES_TO_READ

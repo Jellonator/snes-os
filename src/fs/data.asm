@@ -3,6 +3,7 @@
 .SECTION "FS_Header" BANK $00 SLOT "ROM" ORGA $8000 FORCE
 
 .DSTRUCT INSTANCEOF fs_memdev_root_t VALUES
+    type .dw FS_INODE_TYPE_ROOT
     magicnum .db "MEM\0"
 ; layout info
     bank_first      .db $80

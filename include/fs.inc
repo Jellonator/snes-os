@@ -4,6 +4,7 @@
 .DEFINE FS_INODE_TYPE_FILE 1
 .DEFINE FS_INODE_TYPE_DIR 2
 .DEFINE FS_INODE_TYPE_MOUNT 3
+.DEFINE FS_INODE_TYPE_ROOT 4
 
 .DEFINE FS_MAX_FILENAME_LEN 14
 
@@ -35,15 +36,29 @@
     ; Cleanup filesystem
     ; void free([s16]fs_device_instance_t *dev);
     free dw
-    ; Get inode from path
+    ; Get inode from path.
+    ; The returned inode can be of any type, but is likely to be a FILE or DIRECTORY.
     ; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
     lookup dw
-    ; Read from file into buffer
+    ; Read data from the handle into the buffer.
     ; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
     read dw
     ; Write data from buffer into file
-    ; [a16]bool write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+    ; [a16]u16 write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
     write dw
+    ; Allocate inode
+    ; [x16]u16 alloc([s16]fs_device_instance_t *dev, [s24]fs_inode_info_t* data);
+    alloc dw
+    ; Link inode
+    ; void link([x16]u16 inode_id, [s24]char *path);
+    link dw
+    ; Unlink the inode at the given path
+    ; void unlink([s24]char* path);
+.ENDST
+
+.STRUCT fs_inode_info_t
+    type dw
+    size dw
 .ENDST
 
 .STRUCT fs_device_instance_t
@@ -109,6 +124,9 @@
 
 ; root structure
 .STRUCT fs_memdev_root_t SIZE 256
+; header 'type' info from inode
+    type dw
+; magicnumber for comparison
     magicnum ds 4
 ; layout info
     bank_first db
@@ -128,6 +146,6 @@
     ; first free inode in linked list
     inode_next_free dw
 ; directory
-    _reserved ds 12
+    _reserved ds 10
     dirent INSTANCEOF fs_memdev_direntry_t 14
 .ENDST
