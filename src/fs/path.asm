@@ -109,6 +109,20 @@ pathValidate:
         ldy #0
         jmp @loop
     +:
+    cmp #$20
+    bcs +
+        ; control characters are invalid
+        lda #0
+        plx
+        rtl
+    +:
+    cmp #$7F
+    bcc +
+        ; extended ascii are invalid
+        lda #0
+        plx
+        rtl
+    +:
     ; found a character
     cpy #FS_MAX_FILENAME_LEN
     bne +
