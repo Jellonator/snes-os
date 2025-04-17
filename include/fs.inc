@@ -38,6 +38,11 @@
     free dw
     ; Get inode from path.
     ; The returned inode can be of any type, but is likely to be a FILE or DIRECTORY.
+    ; RETURN:
+    ;     X = NODE
+    ;     Y = PARENT
+    ; NODE may be NULL when PARENT is VALID, indicating that file may be created.
+    ; `path` is updated, in this scenario.
     ; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
     lookup dw
     ; Read data from the handle into the buffer.
@@ -49,16 +54,24 @@
     ; Allocate inode
     ; [x16]u16 alloc([s16]fs_device_instance_t *dev, [s24]fs_inode_info_t* data);
     alloc dw
-    ; Link inode
-    ; void link([x16]u16 inode_id, [s24]char *path);
+    ; Link inode to destination
+    ; `dest` should be a DIRECTORY inode, `source` should be a FILE inode.
+    ; `name` is the name that `source` will take on within `dest`.
+    ; Returns `0` if link failed. Otherwise, returns `1`.
+    ; [bool]u16 link([s16]fs_device_instance_t *dev, [s24]char *name, [s16]u16 source, [s16]u16 dest);
     link dw
     ; Unlink the inode at the given path
-    ; void unlink([s24]char* path);
+    ; Returns `0` if unlink failed. Otherwise, returns `1`.
+    ; [bool]u16 unlink([s16]fs_device_instance_t *dev, [s24]char* path);
+    unlink dw
+    ; Get info about an inode
+    ; void info([s16]fs_device_instance_t *dev, [s16]u16 inode_id, [s24]fs_inode_info_t *data)
+    info dw
 .ENDST
 
 .STRUCT fs_inode_info_t
     type dw
-    size dw
+    size dsw 2
 .ENDST
 
 .STRUCT fs_device_instance_t
