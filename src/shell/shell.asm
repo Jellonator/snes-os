@@ -69,6 +69,7 @@ ShellCommandList:
     .DefCommand _sh_help
     ; .DefCommand _sh_kill
     .DefCommand _sh_meminfo
+    .DefCommand shMkdir
     .DefCommand shPs
     .DefCommand shTest
     .DefCommand shTestProdcons
