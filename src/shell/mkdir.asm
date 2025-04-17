@@ -7,10 +7,10 @@ _err_no_file_provided:
     .db "Need at least one parameter.\n\0"
 
 _err_could_not_create:
-    .db "Could not create file.\n\0"
+    .db "Could not create directory.\n\0"
 
-shTouch_name: .db "touch\0"
-shTouch:
+shMkdir_name: .db "mkdir\0"
+shMkdir:
     rep #$30 ; 16b AXY
     ; $01,s: int argc
     ; $03,s: char **argv
@@ -24,16 +24,16 @@ shTouch:
         plb
         jsl procExit
     +:
-    ; create file
+    ; create directory
     rep #$30
     lda $03,S
     inc A
     inc A
     tay
     ldx.w $0000,Y
-    jsl fsCreate
+    jsl fsMakeDir
     rep #$30
-    cpx #0
+    cmp #0
     bne +
         phb
         .ChangeDataBank $01
@@ -42,11 +42,6 @@ shTouch:
         plb
         jsl procExit
     +:
-    stx.b $12
-    ; close file
-    rep #$30
-    ldx.b $12
-    jsl fsClose
 @end:
     jsl procExit
 

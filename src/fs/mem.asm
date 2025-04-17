@@ -291,6 +291,7 @@ _memfs_lookup:
             lda.w fs_memdev_inode_t.type,Y
             cmp #FS_INODE_TYPE_DIR
             beq @begin_search
+            stz.b PARENT_NODE ; PARENT_NODE is set to NULL, since it is not a DIR
             jmp @search_failed
         @tail_is_empty:
         ; EMPTY TAIL
@@ -372,6 +373,7 @@ _memfs_read:
         cmp #FS_INODE_TYPE_ROOT
         beql _memfs_read_dir
         ; not either, don't read anything
+        pld
         lda #0
         rtl
     +:

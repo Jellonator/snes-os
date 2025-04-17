@@ -41,8 +41,9 @@
     ; RETURN:
     ;     X = NODE
     ;     Y = PARENT
-    ; NODE may be NULL when PARENT is VALID, indicating that file may be created.
-    ; `path` is updated, in this scenario.
+    ; NODE may be NULL when PARENT is VALID, indicating that file does not exist but may be created.
+    ; `path` is updated to tail in this scenario.
+    ; The returned parent is always either a ROOT, or a DIR.
     ; [x16]inode *lookup([s16]fs_device_instance_t *dev, [s24]char *path);
     lookup dw
     ; Read data from the handle into the buffer.
