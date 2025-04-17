@@ -383,6 +383,7 @@ _memfs_read:
     ldy #fs_memdev_inode_t.size
     lda [kTmpPtrL],Y
     sec
+    ; TODO: fail if fileptr is invalid?
     sbc.l $7E0000 + fs_handle_instance_t.fileptr,X
     .AMINU P_DIR BYTES_TO_READ
     sta.b BYTES_TO_READ
@@ -433,6 +434,7 @@ _memfs_read_dir:
     ; check size
     lda 2+$04,S
     sta.b BYTES_TO_READ
+    ; TODO: fail if fileptr is invalid
     lda.l $7E0000 + fs_handle_instance_t.fileptr,X
     sta.b FILEPTR
     stz.b BYTES_READ
@@ -529,6 +531,8 @@ _memfs_read_dir:
 ; buffer $06,S
 ; fh     $09,S
 _memfs_write:
+    ; TODO: write to fileptr, only increment SIZE if fileptr
+    ; eaches past end of file
     .DEFINE SOURCE $00
     .DEFINE DEST $03
     .DEFINE BYTES_TO_WRITE $06
@@ -729,39 +733,28 @@ _memfs_link:
     lda #1
     rtl
 
-; void unlink([s16]fs_device_instance_t *dev, [s24]char* path);
-; path $04,S
-; dev $07,S
+; void unlink([s16]fs_device_instance_t *dev, [s16]u16 source, [u16]u16 dest);
+; dest $04,S
+; source $06,S
+; dev $08,S
 _memfs_unlink:
     rep #$30
-; first, get inode
-    lda $07,S
-    pha
-    lda $05,S
-    pha
-    sep #$30
-    lda $04,S
-    pha
-    jsl _memfs_lookup
 ; setup pointers
     rep #$30
     stz.b $00 ; [$00] = FOUND NODE
     stz.b $03 ; [$03] = PARENT NODE
-    stx.b $01
-    sty.b $04
-    pla
-    pla
-    sep #$20
-    pla
-    rep #$30
+    lda $06,S
+    sta.b $01
+    lda $04,S
+    sta.b $04
 ; check nodes are not null
-    cpx #0
+    lda $04,S
     bne +
     @fail:
         lda #0
         rtl
     +:
-    cpy #0
+    lda $06,S
     beq @fail
 ; check that (NODE is FILE) or (NODE is DIR and (NODE.dirent[0].blockId != 0 or NODE.nlink > 1))
     ldy #fs_memdev_inode_t.type
@@ -817,11 +810,14 @@ _memfs_unlink:
         jmp @loop_copy_bytes
 @remove_end:
 @search_failed:
+    ; copy one empty entry
+    lda #0
+    sta [$03],Y
     ; handle deletion, possibly
     ldy #fs_memdev_inode_t.nlink
     lda [$00],Y
     bne @dont_free_node
-        lda $07,S
+        lda $08,S
         tax
         sep #$20
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
@@ -839,6 +835,10 @@ _memfs_unlink:
         ldy #fs_memdev_root_t.inode_next_free
         lda.b $01
         sta [$03],Y
+        ; NODE->type = NONE
+        ldy #fs_memdev_inode_t.type
+        lda #FS_INODE_TYPE_EMPTY
+        sta [$00],Y
 @dont_free_node:
     lda #1
     rtl
@@ -881,6 +881,7 @@ _memfs_info:
     write  .dw _memfs_write
     alloc  .dw _memfs_alloc
     link   .dw _memfs_link
+    unlink .dw _memfs_unlink
     info   .dw _memfs_info
 .ENDST
 

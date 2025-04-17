@@ -17,6 +17,7 @@ SOURCES  := fs/core.asm\
 			shell/echo.asm\
 			shell/mkdir.asm\
 			shell/ps.asm\
+			shell/rm.asm\
 			shell/shell.asm\
 			shell/touch.asm\
 			system/init.asm\

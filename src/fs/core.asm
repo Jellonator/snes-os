@@ -159,6 +159,8 @@ kfsFindDevicePointer:
 ; Open a file
 ; [X]fs_device_instance_t *fs_open([X]char *filename)
 fsOpen:
+    ; TODO: add 'mode'
+    ; TODO: fail for read-only nodes and filesystems, if mode is 'write'
     phx ; [+2, 2]
     ; check string length <= FS_MAX_FILENAME_LEN
     sep #$30
@@ -217,6 +219,7 @@ fsOpen:
     sta.l $7E0000 + fs_handle_instance_t.state,X
     lda #0
     sta.l $7E0000 + fs_handle_instance_t.fileptr,X
+    ; TODO: change fileptr depending on mode (set to size if mode is append)
     lda $03,S
     sta.l $7E0000 + fs_handle_instance_t.device,X
     lda $01,S
@@ -254,6 +257,8 @@ fsSeek:
     .ACCU 16
     sta.l $7E0000 + fs_handle_instance_t.fileptr,X
     ; TODO: call into device?
+    ; TODO: maybe make a syscall for this, since seek is probably broken for
+    ; directories (since fileptr is a bit odd).
     rtl
 
 ; Read bytes from file in file handle
@@ -261,6 +266,7 @@ fsSeek:
 ; buffer: $06,S
 ; nbytes: $04,S
 fsRead:
+    ; TODO: check handle state for read-access
     .INDEX 16
     phx ; [+2, 2] PARAM fh
     sep #$20
@@ -288,6 +294,7 @@ fsRead:
 ; buffer: $06,S
 ; nbytes: $04,S
 fsWrite:
+    ; TODO: check handle state for write-access
     .INDEX 16
     phx ; [+2, 2] PARAM fh
     sep #$20
@@ -307,6 +314,117 @@ fsWrite:
     plx
     lda.b $00
     rtl
+
+; Remove file
+; [a16] bool fsRemove([x16]char *path)
+fsRemove:
+    .INDEX 16
+; search for inode
+    phx ; [+2, 2]
+    .DEFINE S_FILENAME 2
+    sep #$30
+    .DisableInt__ ; [+1, 3]
+    ; Find file device
+    rep #$30
+    lda 3-S_FILENAME+1,S ; load path
+    tax
+    lda.w $0000,X
+    and #$00FF
+    cmp #'/'
+    bne +
+        inx
+    +:
+    jsl kfsFindDevicePointer
+    rep #$30
+    cpy #0
+    bne +
+        jmp @end_null
+    +:
+    phy ; [+2, 5]
+    .DEFINE S_DEVICE_INSTANCE 5
+    ; Call into device to get inode
+    lda 5-S_FILENAME+1,S ; load path
+    tax
+    jsl pathGetTailPtr
+    rep #$30
+    phb ; [+1, 6]
+    phx ; [+2, 8]
+    .DEFINE S_SUBPATH 8
+    lda 8-S_DEVICE_INSTANCE+1,S ; load device
+    tax
+    lda.l $7E0000 + fs_device_instance_t.template,X ; load template
+    tax
+    .FsCall fs_device_template_t.lookup
+    rep #$30
+    .POPN 3 ; [-3, 5]
+    ; check inode is not null
+    rep #$30
+    cpx #0
+    bne +
+        .POPN 2
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+    phx ; [+2, 7]
+    .DEFINE S_SOURCE 10
+    phy ; [+2; 9]
+    .DEFINE S_DEST 12
+    ; check that no files in OFT reference inode
+    ldx.w #loword(kfsFileHandleTable)
+    @search_table_loop:
+        lda.l fs_handle_instance_t.state,X
+        and #FS_TABLE_FLAG_OPEN
+        beq @search_table_skip ; skip this file, it is not open
+        lda 9-S_DEVICE_INSTANCE,S
+        cmp.l fs_handle_instance_t.device,X
+        bne @search_table_skip
+        lda.b 9-S_DEST,S
+        cmp.l fs_handle_instance_t.inode,X
+        bne @search_table_skip
+            ; open file matches device and inode, so we can not unlink. fail.
+            .POPN 6
+            jmp @end_null
+            .ACCU 16
+            .INDEX 16
+    @search_table_skip:
+        txa
+        clc
+        adc #_sizeof_fs_handle_instance_t
+        cmp #kfsFileHandleTable + (_sizeof_fs_handle_instance_t*FS_OFT_SIZE)
+        bcs @search_table_end
+        tax
+        jmp @search_table_loop
+    @search_table_end:
+    ; unlink file.
+    ; This may fail if the node is a folder with a file in it.
+    lda 9-S_DEVICE_INSTANCE+1,S ; load device
+    tax
+    lda.l $7E0000 + fs_device_instance_t.template,X ; load template
+    tax
+    .FsCall fs_device_template_t.unlink
+    rep #$30
+    sta.b $00
+    .POPN 6
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    .POPN 2 ; [-2, 0]
+    rep #$30
+    lda.b $00
+    rtl
+@end_null:
+    ; ASSUME stack is +3
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    .POPN 2 ; [-2, 0]
+    rep #$30
+    lda #0
+    rtl
+.UNDEFINE S_FILENAME
+.UNDEFINE S_DEVICE_INSTANCE
+.UNDEFINE S_SUBPATH
+.UNDEFINE S_SOURCE
+.UNDEFINE S_DEST
 
 .DSTRUCT _fs_base_file INSTANCEOF fs_inode_info_t VALUES
     type .dw FS_INODE_TYPE_FILE
@@ -461,6 +579,7 @@ fsMakeDir:
 ; Create a file, and return its file handle
 ; [x16]u16 fsCreate([x16]char *filename);
 fsCreate:
+    ; TODO: fail if device is read-only
     .INDEX 16
     phx ; [+2, 2] - char *filename
     .DEFINE S_FILENAME 2
@@ -523,6 +642,7 @@ fsCreate:
         rep #$10
         ldx.b $00
         ldy #0
+        ; TODO: check node type (must be a file)
         rtl
         .ACCU 16
         .INDEX 16
