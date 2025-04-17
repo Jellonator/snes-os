@@ -157,7 +157,7 @@ kfsFindDevicePointer:
     rtl
 
 ; Open a file
-; [X]fs_device_instance_t *fs_open([X]char *filename, [S]byte mode)
+; [X]fs_device_instance_t *fs_open([X]char *filename)
 .DEFINE P_FNAME $05
 .DEFINE P_MODE $04
 fsOpen:
@@ -202,8 +202,8 @@ fsOpen:
     lda.l $7E0000 + fs_device_instance_t.template,X ; load template
     tax
     .FsCall fs_device_template_t.lookup
-    rep #$30
     .POPN 3 ; [-3, 7]
+    rep #$30
     ; check inode
     cpx #0
     bne +
@@ -311,6 +311,167 @@ fsWrite:
     plx
     lda.b $00
     rtl
+
+.DSTRUCT _fs_base_file INSTANCEOF fs_inode_info_t VALUES
+    type .dw FS_INODE_TYPE_FILE
+.ENDST
+
+; Create a file, and return its file handle
+; [x16]u16 fsCreate([x16]char *filename);
+fsCreate:
+    .INDEX 16
+    phx ; [+2, 2] - char *filename
+    .DEFINE S_FILENAME 2
+    ; check string length <= FS_MAX_FILENAME_LEN
+    sep #$30
+    .DisableInt__ ; [+1, 3] - interrupt
+    .DEFINE S_INT 3
+; Find empty file descriptor
+    jsr _fs_get_open_file_handle
+    rep #$30
+    cpx #0
+    bne +
+        jmp @end_null
+    +:
+    phx ; [+2, 5] - fs_handle_instance_t*
+    .DEFINE S_FILE_HANDLE 5
+; Find file device
+    lda 5-S_FILENAME+1,S ; load path
+    tax
+    lda.w $0000,X
+    and #$00FF
+    cmp #'/'
+    bne +
+        inx
+    +:
+    jsl kfsFindDevicePointer
+    rep #$30
+    cpy #0
+    bne +
+        .POPN 2
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+    phy ; [+2, 7] - fs_device_instance_t*
+    .DEFINE S_DEVICE_INSTANCE 7
+; Search for parent inode
+    lda 7-S_FILENAME+1,S ; load path
+    tax
+    jsl pathGetTailPtr
+    rep #$30
+    phb ; [+1, 8] - char* path_sub
+    phx ; [+2, 10]
+    .DEFINE S_SUBPATH 10
+    lda 10-S_DEVICE_INSTANCE+1,S ; load device
+    tax
+    lda.l $7E0000 + fs_device_instance_t.template,X ; load template
+    tax
+    .FsCall fs_device_template_t.lookup
+    rep #$30
+    ; check inode (NODE must be NULL, PARENT must be VALID)
+    cpx #0
+    beq +
+        .POPN 7
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+    cpy #0
+    bne +
+        .POPN 7
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+    ; set up stack for later link
+    phx ; [+2; 12]
+    .DEFINE S_SOURCE 12
+    phy ; [+2; 14]
+    .DEFINE S_DEST 14
+    ; check path (must be basename; not empty, no separators)
+    lda 14-S_SUBPATH+1,S
+    tax
+    lda.w $0000,X
+    cmp #'/'
+    bne +
+        inx
+        txa
+        sta $01,S
+    +:
+    jsl pathIsName
+    .ACCU 8
+    cmp #0
+    bne +
+        .POPN 11
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+; Allocate new inode
+    rep #$30
+    lda 14-S_DEVICE_INSTANCE+1,S
+    pha ; [+2; 16]
+    .PEAL _fs_base_file ; [+3; 19]
+    rep #$20
+    lda 19-S_DEVICE_INSTANCE+1,S ; load device
+    tax
+    lda.l $7E0000 + fs_device_instance_t.template,X ; load template
+    tax
+    .FsCall fs_device_template_t.alloc
+    rep #$30
+    txa
+    sta 19-S_SOURCE+1,S
+    .POPN 5 ; [-5; 14]
+    ; check new node is not null (allocation error)
+    rep #$30
+    lda 14-S_SOURCE+1,S
+    cmp #0
+    bne +
+        .POPN 11
+        jmp @end_null
+        .ACCU 16
+        .INDEX 16
+    +:
+; link new inode
+    rep #$20
+    lda 14-S_DEVICE_INSTANCE+1,S ; load device
+    tax
+    lda.l $7E0000 + fs_device_instance_t.template,X ; load template
+    tax
+    .FsCall fs_device_template_t.link
+    ; just assume the link succeeded tbh
+    ; TODO: handle link error
+; success! now write out
+    rep #$30
+    lda 14-S_FILE_HANDLE+1,S
+    tax
+    lda #FS_TABLE_FLAG_OPEN
+    sta.l $7E0000 + fs_handle_instance_t.state,X
+    lda #0
+    sta.l $7E0000 + fs_handle_instance_t.fileptr,X
+    lda 14-S_DEVICE_INSTANCE+1,S
+    sta.l $7E0000 + fs_handle_instance_t.device,X
+    lda 14-S_SOURCE+1,S
+    sta.l $7E0000 + fs_handle_instance_t.inode,X
+    .POPN 11
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    .POPN 2 ; [-2, 0]
+    rep #$10
+    ldy #0
+    rtl
+@end_null:
+    ; ASSUME stack is +3
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    .POPN 2 ; [-2, 0]
+    rep #$10
+    ldx #0
+    ldy #0
+    rtl
+.UNDEFINE P_FNAME
+.UNDEFINE P_MODE
 
 ; mount device, returns pointer to device in X
 ; Push order:

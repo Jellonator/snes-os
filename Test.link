@@ -8,6 +8,7 @@ obj/shell/cat.obj
 obj/shell/echo.obj
 obj/shell/ps.obj
 obj/shell/shell.obj
+obj/shell/touch.obj
 obj/system/init.obj
 obj/system/main.obj
 obj/system/memlayout.obj

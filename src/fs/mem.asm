@@ -5,6 +5,15 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KFSMem" FREE
 
+; Clear directory stored in X
+_clear_dir:
+    rep #$20
+    lda #0
+    .REPT 14 INDEX i
+        sta.w fs_memdev_root_t.dirent.{i+1}.blockId,X
+    .ENDR
+    rts
+
 ; $06,S: fs_device_instance_t* device
 ; B,Y: header
 ; $7E,X: device
@@ -39,6 +48,7 @@ _memfs_clear_device_instance:
     xba
     lda.w fs_memdev_root_t.page_first,X
     rep #$20
+    inc A
     sta.w fs_memdev_root_t.inode_next_free,X
     ; iterate
     lda.w fs_memdev_root_t.page_first,X
@@ -77,6 +87,7 @@ _memfs_clear_device_instance:
             rep #$20
             lda.b kTmpPtrL+1
             inc A
+            ldy #fs_memdev_inode_t.inode_next
             sta [kTmpPtrL],Y
             ; increment pointer
             lda.b kTmpPtrL+1
@@ -95,6 +106,7 @@ _memfs_clear_device_instance:
         xba
         lda.w fs_memdev_root_t.page_first,X
         rep #$20
+        ldy #fs_memdev_inode_t.inode_next
         sta [kTmpPtrL],Y
         ; increment pointer
         lda.b kTmpPtrL+2
@@ -108,9 +120,7 @@ _memfs_clear_device_instance:
         jmp @loop_bank
     @loop_bank_end:
     ; clear directory
-    rep #$20
-    lda #0
-    sta.w fs_memdev_root_t.dirent.1.blockId,X
+    jsr _clear_dir
     pld
     rts
 
@@ -153,6 +163,7 @@ _memfs_free:
 ; path: $04,S
 ; dev: $07,S
 _memfs_lookup:
+    .DEFINE PARENT_NODE $00
     ; check if path is empty; if so, then return root node
     phb
     rep #$30
@@ -177,6 +188,7 @@ _memfs_lookup:
         rep #$20
         tax
         plb
+        ldy #0 ; root has no parent
         rtl
     @path_not_empty:
     plb
@@ -187,9 +199,11 @@ _memfs_lookup:
     ; get header
     sep #$20
     lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+    sta.b PARENT_NODE+1
     pha
     plb
     lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+    sta.b PARENT_NODE
     xba
     lda #0
     tay ; Y = first_bank:first_page:00
@@ -264,9 +278,11 @@ _memfs_lookup:
             lda #0
             xba
             lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+            sta.b PARENT_NODE
             xba
             tax
             lda.w fs_memdev_inode_t.dir.dirent.1.blockId+1,Y
+            sta.b PARENT_NODE+1
             pha
             plb
             txy
@@ -305,13 +321,17 @@ _memfs_lookup:
                 plb
                 rep #$20
                 tax
+                ldy.b PARENT_NODE
                 rtl
     ; end
 @search_failed:
     rep #$30
     plb
+    ; failed - no node, no parent
     ldx #0
+    ldy.b PARENT_NODE
     rtl
+    .UNDEFINE PARENT_NODE
 
 ; [a16]u16 read([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
 ; fh:     $09,S
@@ -426,8 +446,8 @@ _memfs_read_dir:
     jmp @loop_copy_begin
     @loop_copy:
         ; decrement bytes to read, and end if no more bytes can be read
-        dec.b BYTES_TO_READ
         inc.b BYTES_READ
+        dec.b BYTES_TO_READ
         beq @loop_copy_end
     @loop_copy_begin:
         ; if fileptr%16 == 14, then read in a null byte and increment.
@@ -501,7 +521,354 @@ _memfs_read_dir:
     rtl
     .UNDEFINE BYTES_TO_READ
 
+; Write data from buffer into file
+; [a16]u16 write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
+; nbytes $04,S
+; buffer $06,S
+; fh     $09,S
 _memfs_write:
+    .DEFINE SOURCE $00
+    .DEFINE DEST $03
+    .DEFINE BYTES_TO_WRITE $06
+    rep #$30
+; check nbytes > 0
+    lda $04,S
+    bne @has_bytes
+        lda #0
+        rtl
+@has_bytes:
+; get dest ptr
+    lda $09,S
+    tax
+    sep #$20
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+    sta.b DEST+2
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+    sta.b DEST+1
+    stz.b DEST
+; get source ptr
+    lda $06,S
+    sta.b SOURCE
+    lda $07,S
+    sta.b SOURCE+1
+; determine number of bytes to write. For now, we just use `192` as the maximum file size
+; TODO: implement indirect
+    lda #192
+    ldy #fs_memdev_inode_t.size
+    sec
+    sbc [DEST],Y
+    .AMINU P_STACK $04
+    sta.b BYTES_TO_WRITE
+    cmp #0
+    beq @end_write_loop
+; write bytes
+    ldy #fs_memdev_inode_t.file.directData
+    @loop_write_bytes:
+        lda [SOURCE]
+        sta [DEST],Y
+        inc.b SOURCE
+        iny
+        dec.b BYTES_TO_WRITE
+        beq @end_write_loop
+        jmp @loop_write_bytes
+@end_write_loop:
+; set new size
+    ldy #fs_memdev_inode_t.size
+    lda [DEST]
+    clc
+    adc.b BYTES_TO_WRITE
+    sta [DEST]
+; end
+    rep #$30
+    lda.b BYTES_TO_WRITE
+    rtl
+
+; [x16]u16 alloc([s16]fs_device_instance_t *dev, [s24]fs_inode_info_t* data);
+; data: $04,S
+; dev: $07,S
+_memfs_alloc:
+    phb
+; get header
+    rep #$30
+    lda 1+$07,S
+    tax
+    sep #$20
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+    pha
+    plb
+    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+    xba
+    lda #0
+    tax ; X = first_bank:first_page:00
+; get and swap inode
+    ; setup pointer
+    rep #$20
+    stz.b $00
+    lda.w fs_memdev_root_t.inode_next_free,X
+    bne @has_next_inode
+        ldx #0
+        plb
+        rtl
+@has_next_inode:
+    sta.b $00+1
+    ; ROOT->next = ROOT->next->next
+    ldy #fs_memdev_inode_t.inode_next
+    lda [$00],Y
+    sta.w fs_memdev_root_t.inode_next_free,X
+    ; NODE->next = NULL
+    lda #0
+    sta [$00],Y
+; set base inode data
+    ; NODE->nlink = 0
+    ldy #fs_memdev_inode_t.nlink
+    sta [$00],Y
+    ; NODE->size = 0
+    ldy #fs_memdev_inode_t.size
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size+2
+    sta [$00],Y
+; copy data into inode
+    ; setup pointer
+    lda 1+$04,S
+    sta.b $03
+    lda 1+$04+1,S
+    sta.b $03+1
+    ; copy type
+    ldy #fs_inode_info_t.type
+    lda [$03],Y
+    sta [$00],Y
+; update root data
+    lda.w fs_memdev_root_t.num_used_inodes,X
+    inc A
+    sta.w fs_memdev_root_t.num_used_inodes,X
+    lda.w fs_memdev_root_t.num_free_inodes,X
+    dec A
+    sta.w fs_memdev_root_t.num_free_inodes,X
+; pull bank
+    plb
+; clear directory, if type is DIR
+    ldy #fs_memdev_inode_t.type
+    lda [$00]
+    cmp #FS_INODE_TYPE_DIR
+    bne @inode_is_not_dir
+        phb
+        sep #$20
+        lda.b $02
+        pha
+        plb
+        ldx.b $00
+        jsr _clear_dir
+        plb
+@inode_is_not_dir:
+; end
+    ldx.b $00+1
+    rtl
+
+; void link([s16]fs_device_instance_t *dev, [s24]char *name, [s16]u16 source, [s16]u16 dest)
+; dest $04,S
+; source $06,S
+; name $08,S
+; dev $0B,S
+_memfs_link:
+    rep #$30
+    lda $04,S
+    stz.b $00
+    sta.b $00+1
+    ; loop until free slot found
+    ldy #fs_memdev_inode_t.dir.dirent
+@loop_search_slot:
+        lda [$00],Y
+        beq @found_slot
+        tya
+        clc
+        adc #16
+        tay
+        cmp #256
+        bcc @loop_search_slot
+        ; reached end of inode, fail
+        lda #0
+        rtl
+@found_slot:
+    ; sty.b $06
+; copy source into slot
+    lda $06,S
+    sta [$00],Y
+; copy name into slot
+    lda $08,S
+    sta.b $03
+    lda $08+1,S
+    sta.b $03+1
+    .REPT (14/2)
+        iny
+        iny
+        lda [$03]
+        sta [$00],Y
+        inc.b $03
+        inc.b $03
+    .ENDR
+    iny
+    iny
+; set next inode to 0 (if Y <256)
+    cpy #256
+    bcs +
+        tya
+        lda #0
+        sta [$00],Y
+    +:
+; indicate to source that it has been linked to
+    lda $06,S
+    stz.b $00
+    sta.b $00+1
+    ldy #fs_memdev_inode_t.nlink
+    lda [$00],Y
+    inc A
+    sta [$00],Y
+; end
+    lda #1
+    rtl
+
+; void unlink([s16]fs_device_instance_t *dev, [s24]char* path);
+; path $04,S
+; dev $07,S
+_memfs_unlink:
+    rep #$30
+; first, get inode
+    lda $07,S
+    pha
+    lda $05,S
+    pha
+    sep #$30
+    lda $04,S
+    pha
+    jsl _memfs_lookup
+; setup pointers
+    rep #$30
+    stz.b $00 ; [$00] = FOUND NODE
+    stz.b $03 ; [$03] = PARENT NODE
+    stx.b $01
+    sty.b $04
+    pla
+    pla
+    sep #$20
+    pla
+    rep #$30
+; check nodes are not null
+    cpx #0
+    bne +
+    @fail:
+        lda #0
+        rtl
+    +:
+    cpy #0
+    beq @fail
+; check that (NODE is FILE) or (NODE is DIR and (NODE.dirent[0].blockId != 0 or NODE.nlink > 1))
+    ldy #fs_memdev_inode_t.type
+    lda [$00],Y
+    cmp #FS_INODE_TYPE_FILE ; NODE is FILE => success
+    beq @node_is_good
+    cmp #FS_INODE_TYPE_DIR ; not NODE is DIR => fail
+    bne @fail
+        ldy #fs_memdev_inode_t.nlink
+        lda [$00],Y
+        cmp #2
+        bcs @node_is_good ; NODE.nlink >= 2 => success
+        ldy #fs_memdev_inode_t.dir.dirent.1.blockId
+        lda [$00],Y
+        bne @fail ; NODE.dirent[0].blockId != 0 => fail
+@node_is_good:
+; decrement link count
+    ldy #fs_memdev_inode_t.nlink
+    lda [$00],Y
+    beq +
+        dec A
+    +:
+    sta [$00],Y
+; remove from parent
+    ; go to index of node
+    ldy #fs_memdev_inode_t.dir.dirent.1
+@loop_search_node:
+        lda [$03],Y
+        cmp.b $01
+        beq @found_in_node
+        tya
+        clc
+        adc #16
+        tay
+        cmp #256
+        bcs @search_failed ; search failed... somehow
+        jmp @loop_search_node
+@found_in_node:
+    ; now, copy bytes until Y>= 240
+@loop_copy_bytes:
+        cpy #240
+        bcs @remove_end
+        tyx
+        tya
+        clc
+        adc #16
+        tay
+        lda [$03],Y
+        txy
+        sta [$03],Y
+        iny
+        iny
+        jmp @loop_copy_bytes
+@remove_end:
+@search_failed:
+    ; handle deletion, possibly
+    ldy #fs_memdev_inode_t.nlink
+    lda [$00],Y
+    bne @dont_free_node
+        lda $07,S
+        tax
+        sep #$20
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+        sta.b $03+2
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+        sta.b $03+1
+        stz.b $03 ; [$03] is now ROOT
+        rep #$30
+        ; NODE->next = ROOT->next
+        ldy #fs_memdev_root_t.inode_next_free
+        lda [$03],Y
+        ldy #fs_memdev_inode_t.inode_next
+        sta [$00],Y
+        ; ROOT->next = NODE
+        ldy #fs_memdev_root_t.inode_next_free
+        lda.b $01
+        sta [$03],Y
+@dont_free_node:
+    lda #1
+    rtl
+
+; void info([s16]fs_device_instance_t *dev, [s16]u16 inode_id, [s24]fs_inode_info_t *data)
+; data     $04
+; inode_id $07
+; dev      $09
+_memfs_info:
+    rep #$30
+; setup pointers
+    lda $04,S
+    sta.b $00
+    lda $04+1,S
+    sta.b $00+1 ; [$00] = data*
+    stz.b $03
+    lda $07,S
+    sta.b $03+1 ; [$03] = inode*
+; load data
+    ldy #fs_memdev_inode_t.type
+    lda [$03],Y
+    ldy #fs_inode_info_t.type
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size
+    lda [$03],Y
+    ldy #fs_inode_info_t.size
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size+2
+    lda [$03],Y
+    ldy #fs_inode_info_t.size+2
+    sta [$00],Y
+; end
     rtl
 
 .DSTRUCT KFS_DeviceType_Mem INSTANCEOF fs_device_template_t VALUES
@@ -510,6 +877,9 @@ _memfs_write:
     lookup .dw _memfs_lookup
     read   .dw _memfs_read
     write  .dw _memfs_write
+    alloc  .dw _memfs_alloc
+    link   .dw _memfs_link
+    info   .dw _memfs_info
 .ENDST
 
 .ENDS

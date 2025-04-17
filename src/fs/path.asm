@@ -41,6 +41,29 @@ pathIsEmpty:
     lda #1
     rtl ; True - first char is null
 
+; Return true if string in X is not empty, and string in X does not contain any separators.
+pathIsName:
+    .INDEX 16
+    sep #$20
+    lda.w $0000,X
+    bne +
+        lda #0
+        rtl ; False - path is empty
+    +:
+@loop:
+        lda.w $0000,X
+        beq @end
+        cmp #'/'
+        bne +
+            lda #0
+            rtl ; False - path contains separator
+        +:
+        inx
+        jmp @loop
+@end:
+    lda #1
+    rtl
+
 ; Get pointer to tail of X
 pathGetTailPtr:
     .INDEX 16

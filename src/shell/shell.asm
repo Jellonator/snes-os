@@ -72,6 +72,7 @@ ShellCommandList:
     .DefCommand shPs
     .DefCommand shTest
     .DefCommand shTestProdcons
+    .DefCommand shTouch
     .dsl 2, $000000
 
 ; tile data addresses; granularity is (X % $0400) words

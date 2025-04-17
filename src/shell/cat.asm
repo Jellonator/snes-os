@@ -90,6 +90,10 @@ shCat:
         jmp @loop
     @end_loop:
     .POPN 5
+    ; close file
+    rep #$30
+    ldx.b $12
+    jsl fsClose
 @end:
     sep #$20
     lda #'\n'
