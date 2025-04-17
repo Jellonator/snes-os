@@ -95,9 +95,6 @@ shCat:
     ldx.b $12
     jsl fsClose
 @end:
-    sep #$20
-    lda #'\n'
-    jsl kPutC
     jsl procExit
 
 .ENDS

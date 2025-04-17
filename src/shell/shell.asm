@@ -71,6 +71,7 @@ ShellCommandList:
     .DefCommand _sh_meminfo
     .DefCommand shMkdir
     .DefCommand shPs
+    .DefCommand shRm
     .DefCommand shTest
     .DefCommand shTestProdcons
     .DefCommand shTouch

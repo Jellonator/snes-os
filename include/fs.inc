@@ -56,14 +56,15 @@
     ; [x16]u16 alloc([s16]fs_device_instance_t *dev, [s24]fs_inode_info_t* data);
     alloc dw
     ; Link inode to destination
-    ; `dest` should be a DIRECTORY inode, `source` should be a FILE inode.
+    ; `dest` should be a DIRECTORY inode, `source` should be a FILE or DIR inode.
     ; `name` is the name that `source` will take on within `dest`.
     ; Returns `0` if link failed. Otherwise, returns `1`.
     ; [bool]u16 link([s16]fs_device_instance_t *dev, [s24]char *name, [s16]u16 source, [s16]u16 dest);
     link dw
-    ; Unlink the inode at the given path
+    ; Unlink the inode from the given parent.
     ; Returns `0` if unlink failed. Otherwise, returns `1`.
-    ; [bool]u16 unlink([s16]fs_device_instance_t *dev, [s24]char* path);
+    ; `dest` should be the DIR parent of `source`.
+    ; [bool]u16 unlink([s16]fs_device_instance_t *dev, [s16]u16 source, [u16]u16 dest);
     unlink dw
     ; Get info about an inode
     ; void info([s16]fs_device_instance_t *dev, [s16]u16 inode_id, [s24]fs_inode_info_t *data)
@@ -120,21 +121,23 @@
     inode_next dw
     _reserved dsw 3
     .UNION file
+        ; direct blocks of data
+        directBlocks dsw 16 ; up to 4KiB of data (16iN × 256B/iN)
+        ; indirect blocks storing inode IDs of data
+        indirectBlocks dsw 4 ; up to 128KiB data (4iN × 128iN/iN × 256B/iN)
+        ; reserved data; maybe double-indirect blocks?
+        ; would be (4iN × 128iN/iN × 128iN/iN × 256) = 16 KiB, or entire addressable space.
+        ; which kinda works out to be honest.
+        ; though, problem here, is that fs_handle_instance_t.fileptr is only up to 64KiB.
+        _reserved dsw 4
         ; first 192 bytes of data are stored directly in the inode
         directData ds 192 ; up to 192B of data
-        ; direct blocks of data
-        directBlocks dsw 16 ; up to 4K of data
-        ; indirect blocks storing inode IDs of data
-        indirectBlocks dsw 4 ; up to 128K data
-        _reserved dsw 4
     .NEXTU dir
         ; list of directory entries
         _reserved ds 16
         dirent INSTANCEOF fs_memdev_direntry_t 14
     .ENDU
 .ENDST
-
-; inode* = $0100*inodeId
 
 ; root structure
 .STRUCT fs_memdev_root_t SIZE 256
