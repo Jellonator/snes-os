@@ -546,12 +546,9 @@ _memfs_write:
 ; get dest ptr
     lda $09,S
     tax
-    sep #$20
-    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
-    sta.b DEST+2
-    lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
-    sta.b DEST+1
     stz.b DEST
+    lda.l $7E0000 + fs_handle_instance_t.inode,X
+    sta.b DEST+1
 ; get source ptr
     lda $06,S
     sta.b SOURCE
@@ -568,22 +565,28 @@ _memfs_write:
     cmp #0
     beq @end_write_loop
 ; write bytes
-    ldy #fs_memdev_inode_t.file.directData
+    lda #fs_memdev_inode_t.file.directData
+    clc
+    adc [DEST],Y
+    tay
+    ldx.b BYTES_TO_WRITE
     @loop_write_bytes:
+        sep #$20
         lda [SOURCE]
         sta [DEST],Y
+        rep #$20
         inc.b SOURCE
         iny
-        dec.b BYTES_TO_WRITE
+        dex
         beq @end_write_loop
         jmp @loop_write_bytes
 @end_write_loop:
 ; set new size
     ldy #fs_memdev_inode_t.size
-    lda [DEST]
+    lda [DEST],Y
     clc
     adc.b BYTES_TO_WRITE
-    sta [DEST]
+    sta [DEST],Y
 ; end
     rep #$30
     lda.b BYTES_TO_WRITE
