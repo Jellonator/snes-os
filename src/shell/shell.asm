@@ -556,7 +556,6 @@ _shell_parse_command:
     @insertstr:
         jsr @insert
     @spaceloop:
-        ; inc.b pwStrBuf
         iny
     @enterspaceloop:
         lda.b (pwStrBuf),Y
@@ -569,7 +568,6 @@ _shell_parse_command:
         inc.b StrBuf
         inc.b StrBufLen
     @charloop:
-        ; inc.b pwStrBuf
         iny
         lda.b (pwStrBuf),Y
         and #$00FF
@@ -583,9 +581,10 @@ _shell_parse_command:
         bra @charloop
     @endloop:
     ; reached end of string
+    ; if at least one char in buffer, then increment arg count
     lda.b StrBufLen
     beq +
-        jsr @insert
+        inc.b NStrArgs
     +:
     rep #$30
     plx
