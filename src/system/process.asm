@@ -192,13 +192,14 @@ procKill:
     ldx #$0000
     @memloop:
         sep #$20 ; 8b A
+        ldy.w memblock_t.mnext,X
+        sty.b $00
         lda.w memblock_t.mPID,X
         cmp.b $04
         bne +
             jsl memFreeBlock__
         +:
-        ldy.w memblock_t.mnext,X
-        tyx
+        ldx.b $00
         cpx #0
         bne @memloop
     .ChangeDataBank $7E
