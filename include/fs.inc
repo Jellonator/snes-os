@@ -80,7 +80,7 @@
     ; device template - defines functionality
     template dw
     ; mount point
-    mount_name ds 14
+    mount_name ds FS_MAX_FILENAME_LEN
     ; custom data, depends on device
     data ds 16
 .ENDST
@@ -106,10 +106,16 @@
 ;   FILESYSTEM SPECIFIC STUFF BELOW  ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+.DEFINE FSMEM_DIR_MAX_INODE_COUNT 14
+.DEFINE FSMEM_DIR_INODESIZE (FS_MAX_FILENAME_LEN+2)
+.ASSERT ((FSMEM_DIR_INODESIZE) & (FSMEM_DIR_INODESIZE-1)) == 0
+; this will never change; inodes are always page-aligned
+.DEFINE FSMEM_INODE_SIZE 256
+
 ; directory entry
 .STRUCT fs_memdev_direntry_t ; SIZE 16
     blockId dw ; if blockId == 0, then end.
-    name ds 14
+    name ds FS_MAX_FILENAME_LEN
 .ENDST
 
 ; inode structure
@@ -135,7 +141,7 @@
     .NEXTU dir
         ; list of directory entries
         _reserved ds 16
-        dirent INSTANCEOF fs_memdev_direntry_t 14
+        dirent INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
     .ENDU
 .ENDST
 
@@ -164,5 +170,13 @@
     inode_next_free dw
 ; directory
     _reserved ds 10
-    dirent INSTANCEOF fs_memdev_direntry_t 14
+    dirent INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
+.ENDST
+
+.STRUCT fs_memdev_direct_data_block SIZE 256
+    data ds 256
+.ENDST
+
+.STRUCT fs_memdev_indirect_data_block SIZE 256
+    inodes dsw 128
 .ENDST

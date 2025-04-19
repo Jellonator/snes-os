@@ -9,7 +9,7 @@
 _clear_dir:
     rep #$20
     lda #0
-    .REPT 14 INDEX i
+    .REPT FSMEM_DIR_MAX_INODE_COUNT INDEX i
         sta.w fs_memdev_root_t.dirent.{i+1}.blockId,X
     .ENDR
     rts
@@ -341,6 +341,8 @@ _memfs_lookup:
 _memfs_read:
     ; TODO: implement indirect blocks
     .DEFINE BYTES_TO_READ kTmpBuffer
+    .DEFINE BYTES_LEFT (kTmpBuffer+2)
+    .DEFINE DIRECTBLOCK_DATA_PTR (kTmpBuffer+4)
     rep #$30
     lda $04,S
     bne @has_bytes
@@ -393,25 +395,69 @@ _memfs_read:
         lda #0
         rtl
     +:
-    ; inc inode to directData + fileptr
-    lda.b kTmpPtrL
+    lda.b BYTES_TO_READ
+    sta.b BYTES_LEFT
+    ; set Y to pointer of data
+    lda.l $7E0000 + fs_handle_instance_t.fileptr,X
     clc
     adc #fs_memdev_inode_t.file.directData
-    clc
-    adc.l $7E0000 + fs_handle_instance_t.fileptr,X
-    sta.b kTmpPtrL
-    ; copy bytes
+    tay
     sep #$20
-    ldy #0
-    ldx.b BYTES_TO_READ
     @loop_copy:
+        cpy #256 ; if Y reaches past end of direct data, switch to direct blocks
+        bcs @begin_directblock_data_read
         lda [kTmpPtrL],Y
-        sta [kTmpPtrL2],Y
+        sta [kTmpPtrL2]
+        inc.b kTmpPtrL2
+        dec.b BYTES_LEFT
+        beq @end_read
         iny
-        dex
-        bne @loop_copy
+        jmp @loop_copy
+; start reading of direct data
+@begin_directblock_data_read:
+    ; Y should be current data pointer+64, so (y/256)-1 is direct data pointer
+    ; Get direct data index
+    rep #$30
+    tyx
+    tya
+    xba
+    and #$00FF
+    dec A
+    asl
+    ; get direct data pointer
+    clc
+    adc #fs_memdev_inode_t.file.directBlocks
+    tay
+    ; write direct data pointer
+    lda [kTmpPtrL],Y
+    stz.b DIRECTBLOCK_DATA_PTR
+    sta.b DIRECTBLOCK_DATA_PTR+1
+    ; set Y to local index
+    txa
+    and #$00FF
+    tay
+@loop_directblock_copy:
+        cpy #256
+        bcs @next_directblock
+        lda [DIRECTBLOCK_DATA_PTR],Y
+        sta [kTmpPtrL2]
+        inc.b kTmpPtrL2
+        dec.b BYTES_LEFT
+        beq @end_read
+        iny
+        jmp @loop_directblock_copy
+@next_directblock:
+        txa
+        and #$FF00
+        xba
+        inc A
+        xba
+        tay
+        jmp @begin_directblock_data_read
+; end read operation
+@end_read:
     ; update fileptr
-    rep #$20
+    rep #$30
     lda 2+$09,S
     tax
     lda.l $7E0000 + fs_handle_instance_t.fileptr,X
@@ -459,8 +505,8 @@ _memfs_read_dir:
         ; be handled regardless.
         ; also, exit loop if inode is null
         lda.b FILEPTR
-        and #$000F
-        cmp #14
+        and #FSMEM_DIR_INODESIZE-1
+        cmp #FS_MAX_FILENAME_LEN
         bne @loop_copy_not_eol
             lda [kTmpPtrL],Y
             cmp #0
@@ -477,7 +523,7 @@ _memfs_read_dir:
             jmp @loop_copy
         ; if fileptr%16 == 0, then end if inode is null, or fileptr >= 14*16
     @loop_copy_not_eol:
-        cmp #14*16
+        cmp #FSMEM_DIR_INODESIZE*FSMEM_DIR_MAX_INODE_COUNT
         bcs @loop_copy_end
         cmp #0
         bne @loop_copy_not_null
@@ -707,7 +753,7 @@ _memfs_link:
     sta.b $03
     lda $08+1,S
     sta.b $03+1
-    .REPT (14/2)
+    .REPT (FSMEM_DIR_MAX_INODE_COUNT/2)
         iny
         iny
         lda [$03]
