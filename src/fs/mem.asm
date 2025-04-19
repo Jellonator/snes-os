@@ -570,6 +570,10 @@ _memfs_read_dir:
     pld ; [-2, 0]
     rtl
     .UNDEFINE BYTES_TO_READ
+    .UNDEFINE BYTES_LEFT
+    .UNDEFINE DIRECTBLOCK_DATA_PTR
+    .UNDEFINE BYTES_READ
+    .UNDEFINE FILEPTR
 
 ; Write data from buffer into file
 ; [a16]u16 write([s16]fs_handle_instance_t *fh, [s24]u8 *buffer, [s16]s16 nbytes)
@@ -579,9 +583,15 @@ _memfs_read_dir:
 _memfs_write:
     ; TODO: write to fileptr, only increment SIZE if fileptr
     ; eaches past end of file
-    .DEFINE SOURCE $00
-    .DEFINE DEST $03
-    .DEFINE BYTES_TO_WRITE $06
+    .DEFINE SOURCE kTmpPtrL
+    .DEFINE DEST kTmpPtrL2
+    .DEFINE BYTES_TO_WRITE kTmpBuffer
+    .DEFINE BYTES_TO_WRITE_IN_BLOCK (kTmpBuffer+2)
+    .DEFINE INITIAL_SIZE (kTmpBuffer+4)
+    ; .DEFINE TOTAL_BYTES_WRITTEN (kTmpBuffer+6)
+    .DEFINE ROOT_PTR (kTmpBuffer+8)
+    .DEFINE DIRECT_PTR (kTmpBuffer+11)
+    .DEFINE DIRECT_INDEX (kTmpBuffer+14)
     rep #$30
 ; check nbytes > 0
     lda $04,S
@@ -589,54 +599,186 @@ _memfs_write:
         lda #0
         rtl
 @has_bytes:
+    phd
+    lda #$0000
+    tcd
 ; get dest ptr
-    lda $09,S
+    lda 2+$09,S
     tax
     stz.b DEST
     lda.l $7E0000 + fs_handle_instance_t.inode,X
     sta.b DEST+1
 ; get source ptr
-    lda $06,S
+    lda 2+$06,S
     sta.b SOURCE
-    lda $07,S
+    lda 2+$07,S
     sta.b SOURCE+1
-; determine number of bytes to write. For now, we just use `192` as the maximum file size
-; TODO: implement indirect
-    lda #192
-    ldy #fs_memdev_inode_t.size
-    sec
-    sbc [DEST],Y
-    .AMINU P_STACK $04
-    sta.b BYTES_TO_WRITE
-    cmp #0
-    beq @end_write_loop
-; write bytes
-    lda #fs_memdev_inode_t.file.directData
-    clc
-    adc [DEST],Y
-    tay
-    ldx.b BYTES_TO_WRITE
-    @loop_write_bytes:
-        sep #$20
-        lda [SOURCE]
-        sta [DEST],Y
-        rep #$20
-        inc.b SOURCE
-        iny
-        dex
-        beq @end_write_loop
-        jmp @loop_write_bytes
-@end_write_loop:
-; set new size
+; determine total number of bytes to write.
+; can store 192B (direct) + 4KiB (direct block)
     ldy #fs_memdev_inode_t.size
     lda [DEST],Y
+    sta.b INITIAL_SIZE
+    lda #192 + 16 * 256
+    sec
+    sbc [DEST],Y
+    .AMINU P_STACK 2+$04
+    sta.b BYTES_TO_WRITE
+    cmp #0
+    beql @end_writing_bytes
+; write bytes
+    ; first, determine WHERE to write
+    ldy #fs_memdev_inode_t.size
+    lda [DEST],Y
+    cmp #192
+    bcsl @do_write_directblock
+    ; write to node's direct data
+        ; determine number of bytes to write in block
+        lda #192
+        sec
+        sbc [DEST],Y
+        .AMINU P_DIR BYTES_TO_WRITE
+        tax
+        sta.b BYTES_TO_WRITE_IN_BLOCK
+        ; get destination pointer
+        lda [DEST],Y
+        clc
+        adc #fs_memdev_inode_t.file.directData
+        tay
+    @loop_direct_write:
+            ; copy byte
+            sep #$20
+            lda [SOURCE]
+            sta [DEST],Y
+            rep #$20
+            ; iter
+            inc.b SOURCE
+            iny
+            dex
+            bne @loop_direct_write
+        ; subtract bytes and add to size
+        ldy #fs_memdev_inode_t.size
+        lda [DEST],Y
+        clc
+        adc.b BYTES_TO_WRITE_IN_BLOCK
+        sta [DEST],Y
+        lda.b BYTES_TO_WRITE
+        sec
+        sbc.b BYTES_TO_WRITE_IN_BLOCK
+        sta.b BYTES_TO_WRITE
+        beql @end_writing_bytes
+@do_write_directblock:
+    ; first, allocate new direct block if (size - 192) % 256 == 0
+    ldy #fs_memdev_inode_t.size
+    lda [DEST],Y
+    sec
+    sbc #192
+    xba
+    and #$00FF
+    asl
     clc
-    adc.b BYTES_TO_WRITE
-    sta [DEST],Y
-; end
+    adc #fs_memdev_inode_t.file.directBlocks
+    sta.b DIRECT_INDEX
+    lda [DEST],Y
+    sec
+    sbc #192
+    and #$00FF
+    bne @dont_allocate_direct
+        ; allocate a direct block
+        lda 2+$09,S
+        tax
+        lda.l $7E0000 + fs_handle_instance_t.device,X
+        tax
+        sep #$20
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
+        sta.b ROOT_PTR+2
+        lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
+        sta.b ROOT_PTR+1
+        stz.b ROOT_PTR
+        rep #$20
+        ; DIRECT = ROOT->next
+        ldy #fs_memdev_root_t.inode_next_free
+        lda [ROOT_PTR],Y
+        stz.b DIRECT_PTR
+        sta.b DIRECT_PTR+1
+        ; ROOT->next = ROOT->next->next
+        ldy #fs_memdev_inode_t.inode_next
+        lda [DIRECT_PTR],Y
+        ldy #fs_memdev_root_t.inode_next_free
+        sta [ROOT_PTR],Y
+        ; modify root available nodes
+        ldy #fs_memdev_root_t.num_used_inodes
+        lda [ROOT_PTR],Y
+        inc A
+        sta [ROOT_PTR],Y
+        ldy #fs_memdev_root_t.num_free_inodes
+        lda [ROOT_PTR],Y
+        dec A
+        sta [ROOT_PTR],Y
+        ldy.b DIRECT_INDEX
+        lda.b DIRECT_PTR+1
+        sta [DEST],Y
+        jmp @allocated_direct
+@dont_allocate_direct:
+        ldy.b DIRECT_INDEX
+        stz.b DIRECT_PTR
+        lda [DEST],Y
+        sta.b DIRECT_PTR+1
+@allocated_direct:
+        ; determine number of bytes to write in block
+        ldy #fs_memdev_inode_t.size
+        ; get dest pointer
+        lda [DEST],Y
+        sec
+        sbc #192
+        and #$00FF
+        tay
+        ; determine number of bytes to write
+        sta.b BYTES_TO_WRITE_IN_BLOCK
+        lda #256
+        sec
+        sbc.b BYTES_TO_WRITE_IN_BLOCK
+        .AMINU P_DIR BYTES_TO_WRITE
+        tax
+        sta.b BYTES_TO_WRITE_IN_BLOCK
+    @loop_directblock_write:
+            ; copy byte
+            sep #$20
+            lda [SOURCE]
+            sta [DIRECT_PTR],Y
+            rep #$20
+            ; iter
+            inc.b SOURCE
+            iny
+            dex
+            bne @loop_directblock_write
+        ; subtract bytes and add to size
+        ldy #fs_memdev_inode_t.size
+        lda [DEST],Y
+        clc
+        adc.b BYTES_TO_WRITE_IN_BLOCK
+        sta [DEST],Y
+        lda.b BYTES_TO_WRITE
+        sec
+        sbc.b BYTES_TO_WRITE_IN_BLOCK
+        sta.b BYTES_TO_WRITE
+        beql @end_writing_bytes
+        jmp @do_write_directblock
+@end_writing_bytes:
     rep #$30
-    lda.b BYTES_TO_WRITE
+    ldy #fs_memdev_inode_t.size
+    lda [DEST],Y
+    sec
+    sbc.b INITIAL_SIZE
+    pld
     rtl
+.UNDEFINE SOURCE
+.UNDEFINE DEST
+.UNDEFINE BYTES_TO_WRITE
+.UNDEFINE ROOT_PTR
+.UNDEFINE DIRECT_PTR
+.UNDEFINE DIRECT_INDEX
+.UNDEFINE INITIAL_SIZE
+.UNDEFINE BYTES_TO_WRITE_IN_BLOCK
 
 ; [x16]u16 alloc([s16]fs_device_instance_t *dev, [s24]fs_inode_info_t* data);
 ; data: $04,S
@@ -788,51 +930,61 @@ _memfs_link:
 ; dev $08,S
 _memfs_unlink:
     rep #$30
+    .DEFINE NODE_PTR kTmpPtrL
+    .DEFINE PARENT_PTR kTmpPtrL2
+    .DEFINE DIRECTBLOCK_PTR kTmpBuffer
+    .DEFINE ROOT_PTR (kTmpBuffer+3)
+    .DEFINE DIRECTBLOCK_INDEX (kTmpBuffer+6)
+    .DEFINE DIRECTBLOCK_COUNT (kTmpBuffer+8)
+    phd
+    lda #$0000
+    tcd
 ; setup pointers
     rep #$30
-    stz.b $00 ; [$00] = FOUND NODE
-    stz.b $03 ; [$03] = PARENT NODE
-    lda $06,S
-    sta.b $01
-    lda $04,S
-    sta.b $04
+    stz.b NODE_PTR
+    stz.b PARENT_PTR
+    lda 2+$06,S
+    sta.b NODE_PTR+1
+    lda 2+$04,S
+    sta.b PARENT_PTR+1
 ; check nodes are not null
-    lda $04,S
+    lda 2+$04,S
     bne +
     @fail:
         lda #0
+        pld
         rtl
     +:
-    lda $06,S
+    lda 2+$06,S
     beq @fail
 ; check that (NODE is FILE) or (NODE is DIR and (NODE.dirent[0].blockId != 0 or NODE.nlink > 1))
     ldy #fs_memdev_inode_t.type
-    lda [$00],Y
+    lda [NODE_PTR],Y
     cmp #FS_INODE_TYPE_FILE ; NODE is FILE => success
     beq @node_is_good
     cmp #FS_INODE_TYPE_DIR ; not NODE is DIR => fail
     bne @fail
         ldy #fs_memdev_inode_t.nlink
-        lda [$00],Y
+        lda [NODE_PTR],Y
         cmp #2
         bcs @node_is_good ; NODE.nlink >= 2 => success
         ldy #fs_memdev_inode_t.dir.dirent.1.blockId
-        lda [$00],Y
+        lda [NODE_PTR],Y
         bne @fail ; NODE.dirent[0].blockId != 0 => fail
 @node_is_good:
 ; decrement link count
     ldy #fs_memdev_inode_t.nlink
-    lda [$00],Y
+    lda [NODE_PTR],Y
     beq +
         dec A
     +:
-    sta [$00],Y
+    sta [NODE_PTR],Y
 ; remove from parent
     ; go to index of node
     ldy #fs_memdev_inode_t.dir.dirent.1
 @loop_search_node:
-        lda [$03],Y
-        cmp.b $01
+        lda [PARENT_PTR],Y
+        cmp.b NODE_PTR+1
         beq @found_in_node
         tya
         clc
@@ -851,9 +1003,9 @@ _memfs_unlink:
         clc
         adc #16
         tay
-        lda [$03],Y
+        lda [PARENT_PTR],Y
         txy
-        sta [$03],Y
+        sta [PARENT_PTR],Y
         iny
         iny
         jmp @loop_copy_bytes
@@ -861,36 +1013,107 @@ _memfs_unlink:
 @search_failed:
     ; copy one empty entry
     lda #0
-    sta [$03],Y
+    sta [PARENT_PTR],Y
     ; handle deletion, possibly
     ldy #fs_memdev_inode_t.nlink
-    lda [$00],Y
-    bne @dont_free_node
-        lda $08,S
+    lda [NODE_PTR],Y
+    bnel @dont_free_node
+        lda 2+$08,S
         tax
         sep #$20
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
-        sta.b $03+2
+        sta.b ROOT_PTR+2
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
-        sta.b $03+1
-        stz.b $03 ; [$03] is now ROOT
+        sta.b ROOT_PTR+1
+        stz.b ROOT_PTR ; [$03] is now ROOT
         rep #$30
         ; NODE->next = ROOT->next
         ldy #fs_memdev_root_t.inode_next_free
-        lda [$03],Y
+        lda [ROOT_PTR],Y
         ldy #fs_memdev_inode_t.inode_next
-        sta [$00],Y
+        sta [NODE_PTR],Y
         ; ROOT->next = NODE
         ldy #fs_memdev_root_t.inode_next_free
-        lda.b $01
-        sta [$03],Y
+        lda.b NODE_PTR+1
+        sta [ROOT_PTR],Y
         ; NODE->type = NONE
         ldy #fs_memdev_inode_t.type
         lda #FS_INODE_TYPE_EMPTY
-        sta [$00],Y
+        sta [NODE_PTR],Y
+        ; ROOT->num_used_inodes--
+        ldy #fs_memdev_root_t.num_used_inodes
+        lda [ROOT_PTR],Y
+        dec A
+        sta [ROOT_PTR],Y
+        ; ROOT->num_free_inodes++
+        ldy #fs_memdev_root_t.num_free_inodes
+        lda [ROOT_PTR],Y
+        inc A
+        sta [ROOT_PTR],Y
+        ; free direct nodes, if necessary
+        ldy #fs_memdev_inode_t.size
+        lda [NODE_PTR],Y
+        clc
+        adc #256-192-1
+        xba
+        and #$00FF
+        beq @end_free_directblock
+        .AMAXU P_IMM 16
+        sta.b DIRECTBLOCK_COUNT
+        ldy #fs_memdev_inode_t.file.directBlocks
+        sty.b DIRECTBLOCK_INDEX
+    @loop_free_directblock:
+            ; setup pointer
+            ldy.b DIRECTBLOCK_INDEX
+            lda [NODE_PTR],Y
+            stz.b DIRECTBLOCK_PTR
+            sta.b DIRECTBLOCK_PTR+1
+            ; DIRECT->next = ROOT->next
+            ; TODO: could probably speed up by linking each node together, then
+            ; linking root to first node, but this is easier for now
+            ldy #fs_memdev_root_t.inode_next_free
+            lda [ROOT_PTR],Y
+            ldy #fs_memdev_inode_t.inode_next
+            sta [DIRECTBLOCK_PTR],Y
+            ; ROOT->next = DIRECT
+            ldy #fs_memdev_root_t.inode_next_free
+            lda.b DIRECTBLOCK_PTR+1
+            sta [ROOT_PTR],Y
+            ; DIRECT->type = NONE
+            ldy #fs_memdev_inode_t.type
+            lda #FS_INODE_TYPE_EMPTY
+            sta [DIRECTBLOCK_PTR],Y
+            ; DIRECT->nlink = 0
+            ldy #fs_memdev_inode_t.nlink
+            lda #0
+            sta [DIRECTBLOCK_PTR],Y
+            ; ROOT->num_used_inodes--
+            ldy #fs_memdev_root_t.num_used_inodes
+            lda [ROOT_PTR],Y
+            dec A
+            sta [ROOT_PTR],Y
+            ; ROOT->num_free_inodes++
+            ldy #fs_memdev_root_t.num_free_inodes
+            lda [ROOT_PTR],Y
+            inc A
+            sta [ROOT_PTR],Y
+            ; iterate
+            dec.b DIRECTBLOCK_COUNT
+            beq @end_free_directblock
+            inc.b DIRECTBLOCK_INDEX
+            inc.b DIRECTBLOCK_INDEX
+            jmp @loop_free_directblock
+    @end_free_directblock:
 @dont_free_node:
     lda #1
+    pld
     rtl
+.UNDEFINE NODE_PTR
+.UNDEFINE PARENT_PTR
+.UNDEFINE DIRECTBLOCK_PTR
+.UNDEFINE ROOT_PTR
+.UNDEFINE DIRECTBLOCK_INDEX
+.UNDEFINE DIRECTBLOCK_COUNT
 
 ; void info([s16]fs_device_instance_t *dev, [s16]u16 inode_id, [s24]fs_inode_info_t *data)
 ; data     $04

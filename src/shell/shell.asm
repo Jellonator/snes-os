@@ -65,6 +65,7 @@ ShellBackgroundData__:
 ShellCommandList:
     ; .DefCommand _sh_clear
     .DefCommand shCat
+    .DefCommand shCp
     .DefCommand shEcho
     .DefCommand _sh_help
     ; .DefCommand _sh_kill

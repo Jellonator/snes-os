@@ -132,7 +132,7 @@
         ; indirect blocks storing inode IDs of data
         indirectBlocks dsw 4 ; up to 128KiB data (4iN × 128iN/iN × 256B/iN)
         ; reserved data; maybe double-indirect blocks?
-        ; would be (4iN × 128iN/iN × 128iN/iN × 256) = 16 KiB, or entire addressable space.
+        ; would be (4iN × 128iN/iN × 128iN/iN × 256) = 16 MiB, or entire addressable space.
         ; which kinda works out to be honest.
         ; though, problem here, is that fs_handle_instance_t.fileptr is only up to 64KiB.
         _reserved dsw 4

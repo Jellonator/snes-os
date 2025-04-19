@@ -73,9 +73,9 @@ kfsDeviceHomePath:
 _fs_get_open_file_handle:
     ; Find empty file descriptor
     rep #$30
-    ldx.w #loword(kfsFileHandleTable)
+    ldx #loword(kfsFileHandleTable)
     @find_fh_loop:
-        lda.w fs_handle_instance_t.state,X
+        lda.l $7E0000 + fs_handle_instance_t.state,X
         and #FS_TABLE_FLAG_OPEN
         beq @find_fh_end ; file descriptor is closed, use it
         txa

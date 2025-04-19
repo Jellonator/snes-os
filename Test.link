@@ -1,10 +1,11 @@
 [objects]
-obj/fs/data.obj
 obj/fs/core.obj
+obj/fs/data.obj
 obj/fs/mem.obj
 obj/fs/path.obj
 obj/lib/lib.obj
 obj/shell/cat.obj
+obj/shell/cp.obj
 obj/shell/echo.obj
 obj/shell/mkdir.obj
 obj/shell/ps.obj
