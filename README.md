@@ -47,6 +47,12 @@ Currently, this command reads the contents of a file, and outputs it into the sh
 
 Since folders can be read as files you can use `cat {folder path}` to list all files in that directory.
 
+#### cp
+
+`cp {source} {dest}`
+
+Copy a file from `source` to `dest`.
+
 #### echo
 
 `echo [string...] [-o filename]`

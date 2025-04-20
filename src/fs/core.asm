@@ -39,6 +39,7 @@ kfsDeviceStaticPath:
     blocks_per_bank .db $80
     num_banks       .db $80
     blocks_total    .dw $4000
+    mode            .dw FS_DEVICE_MODE_READABLE
 .ENDST
 
 ; Volatile filesystem (resets on startup)
@@ -53,6 +54,7 @@ kfsDeviceTempPath:
     blocks_per_bank .db $40
     num_banks       .db $01
     blocks_total    .dw $0040
+    mode            .dw FS_DEVICE_MODE_READABLE | FS_DEVICE_MODE_WRITABLE
 .ENDST
 
 ; Home filesystem (saved between sessions)
@@ -67,6 +69,7 @@ kfsDeviceHomePath:
     blocks_per_bank .db $80
     num_banks       .db $04
     blocks_total    .dw $0200
+    mode            .dw FS_DEVICE_MODE_READABLE | FS_DEVICE_MODE_WRITABLE
 .ENDST
 
 ; find an open file handle and store a pointer to it in X

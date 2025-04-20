@@ -10,7 +10,7 @@ _clear_dir:
     rep #$20
     lda #0
     .REPT FSMEM_DIR_MAX_INODE_COUNT INDEX i
-        sta.w fs_memdev_root_t.dirent.{i+1}.blockId,X
+        sta.w fs_memdev_inode_t.dir.entries.{i+1}.blockId,X
     .ENDR
     rts
 
@@ -23,41 +23,41 @@ _memfs_clear_device_instance:
     lda #$0000
     tcd
     lda #'M' | ('E' << 8)
-    sta.w fs_memdev_root_t.magicnum+0,Y
+    sta.w fs_memdev_inode_t.root.magicnum+0,Y
     lda #'M' | (0 << 8)
-    sta.w fs_memdev_root_t.magicnum+2,Y
-; set up layout (copy 8 bytes)
-    .REPT 4 INDEX i
+    sta.w fs_memdev_inode_t.root.magicnum+2,Y
+; set up layout
+    .REPT (_sizeof_fs_device_instance_mem_data_t/2) INDEX i
         lda.l $7E0000 + fs_device_instance_t.data + (i*2),X
-        sta.w fs_memdev_root_t.bank_first + (i*2),Y
+        sta.w fs_memdev_inode_t.root.bank_first + (i*2),Y
     .ENDR
 ; set up other data
     lda #FS_INODE_TYPE_ROOT
-    sta.w fs_memdev_root_t.type,Y
+    sta.w fs_memdev_inode_t.type,Y
     lda #1 ; first inode is header
-    sta.w fs_memdev_root_t.num_used_inodes,Y
-    lda.w fs_memdev_root_t.num_blocks_total,Y
-    sta.w fs_memdev_root_t.num_total_inodes,Y
+    sta.w fs_memdev_inode_t.root.num_used_inodes,Y
+    lda.w fs_memdev_inode_t.root.num_blocks_total,Y
+    sta.w fs_memdev_inode_t.root.num_total_inodes,Y
     dec A
-    sta.w fs_memdev_root_t.num_free_inodes,Y
+    sta.w fs_memdev_inode_t.root.num_free_inodes,Y
     tyx ; b,X is now used for header
 ; set up linked list
     ; first item
     sep #$20
-    lda.w fs_memdev_root_t.bank_first,X
+    lda.w fs_memdev_inode_t.root.bank_first,X
     xba
-    lda.w fs_memdev_root_t.page_first,X
+    lda.w fs_memdev_inode_t.root.page_first,X
     rep #$20
     inc A
-    sta.w fs_memdev_root_t.inode_next_free,X
+    sta.w fs_memdev_inode_t.inode_next,X
     ; iterate
-    lda.w fs_memdev_root_t.page_first,X
+    lda.w fs_memdev_inode_t.root.page_first,X
     inc A
     xba
     and #$FF00
     sta.b kTmpPtrL
     sep #$20
-    lda.w fs_memdev_root_t.bank_first,X
+    lda.w fs_memdev_inode_t.root.bank_first,X
     sta.b kTmpPtrL+2
     @loop_bank:
         @loop_block:
@@ -81,7 +81,7 @@ _memfs_clear_device_instance:
             ; check if last block
             sep #$20
             lda.b kTmpPtrL+1
-            cmp.w fs_memdev_root_t.page_last,X
+            cmp.w fs_memdev_inode_t.root.page_last,X
             beq @loop_block_end
             ; initialize inode_next of node
             rep #$20
@@ -98,13 +98,13 @@ _memfs_clear_device_instance:
         ; check if last bank
         sep #$20
         lda.b kTmpPtrL+2
-        cmp.w fs_memdev_root_t.bank_last,X
+        cmp.w fs_memdev_inode_t.root.bank_last,X
         beq @loop_bank_end
         ; initialize inode_next of node
         lda.b kTmpPtrL+2
         inc A
         xba
-        lda.w fs_memdev_root_t.page_first,X
+        lda.w fs_memdev_inode_t.root.page_first,X
         rep #$20
         ldy #fs_memdev_inode_t.inode_next
         sta [kTmpPtrL],Y
@@ -113,7 +113,7 @@ _memfs_clear_device_instance:
         inc A
         sta.b kTmpPtrL+2
         ; reset first page
-        lda.w fs_memdev_root_t.page_first,X
+        lda.w fs_memdev_inode_t.root.page_first,X
         xba
         and #$FF00
         sta.b kTmpPtrL
@@ -141,10 +141,10 @@ _memfs_init:
     tay ; Y = first_bank:first_page:00
     ; check if magic number doesn't match
     rep #$20
-    lda.w fs_memdev_root_t.magicnum+0,Y
+    lda.w fs_memdev_inode_t.root.magicnum+0,Y
     cmp #'M' | ('E' << 8)
     bne @magicnum_mismatch
-    lda.w fs_memdev_root_t.magicnum+2,Y
+    lda.w fs_memdev_inode_t.root.magicnum+2,Y
     cmp #'M' | (0 << 8)
     bne @magicnum_mismatch
     jmp @magicnum_end
@@ -222,14 +222,14 @@ _memfs_lookup:
         jmp @search_failed
     @begin_search:
         rep #$20
-        lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+        lda.w fs_memdev_inode_t.dir.entries.1.blockId,Y
         beql @search_failed
     ; compare paths
         phy
         ; directory path
         tya
         clc
-        adc #fs_memdev_inode_t.dir.dirent.1.name
+        adc #fs_memdev_inode_t.dir.entries.1.name
         phb
         pha
         ; check path
@@ -277,11 +277,11 @@ _memfs_lookup:
             ; swap context to inode
             lda #0
             xba
-            lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+            lda.w fs_memdev_inode_t.dir.entries.1.blockId,Y
             sta.b PARENT_NODE
             xba
             tax
-            lda.w fs_memdev_inode_t.dir.dirent.1.blockId+1,Y
+            lda.w fs_memdev_inode_t.dir.entries.1.blockId+1,Y
             sta.b PARENT_NODE+1
             pha
             plb
@@ -300,10 +300,10 @@ _memfs_lookup:
             ; swap context to inode
             lda #0
             xba
-            lda.w fs_memdev_inode_t.dir.dirent.1.blockId,Y
+            lda.w fs_memdev_inode_t.dir.entries.1.blockId,Y
             xba
             tax
-            lda.w fs_memdev_inode_t.dir.dirent.1.blockId+1,Y
+            lda.w fs_memdev_inode_t.dir.entries.1.blockId+1,Y
             pha
             plb
             txy
@@ -487,7 +487,7 @@ _memfs_read_dir:
     ; inc inode to directData+fileptr
     lda.b kTmpPtrL
     clc
-    adc #fs_memdev_inode_t.dir.dirent
+    adc #fs_memdev_inode_t.dir.entries
     clc
     adc.l $7E0000 + fs_handle_instance_t.fileptr,X
     sta.b kTmpPtrL
@@ -696,21 +696,21 @@ _memfs_write:
         stz.b ROOT_PTR
         rep #$20
         ; DIRECT = ROOT->next
-        ldy #fs_memdev_root_t.inode_next_free
+        ldy #fs_memdev_inode_t.inode_next
         lda [ROOT_PTR],Y
         stz.b DIRECT_PTR
         sta.b DIRECT_PTR+1
         ; ROOT->next = ROOT->next->next
         ldy #fs_memdev_inode_t.inode_next
         lda [DIRECT_PTR],Y
-        ldy #fs_memdev_root_t.inode_next_free
+        ldy #fs_memdev_inode_t.inode_next
         sta [ROOT_PTR],Y
         ; modify root available nodes
-        ldy #fs_memdev_root_t.num_used_inodes
+        ldy #fs_memdev_inode_t.root.num_used_inodes
         lda [ROOT_PTR],Y
         inc A
         sta [ROOT_PTR],Y
-        ldy #fs_memdev_root_t.num_free_inodes
+        ldy #fs_memdev_inode_t.root.num_free_inodes
         lda [ROOT_PTR],Y
         dec A
         sta [ROOT_PTR],Y
@@ -801,7 +801,7 @@ _memfs_alloc:
     ; setup pointer
     rep #$20
     stz.b $00
-    lda.w fs_memdev_root_t.inode_next_free,X
+    lda.w fs_memdev_inode_t.inode_next,X
     bne @has_next_inode
         ldx #0
         plb
@@ -811,7 +811,7 @@ _memfs_alloc:
     ; ROOT->next = ROOT->next->next
     ldy #fs_memdev_inode_t.inode_next
     lda [$00],Y
-    sta.w fs_memdev_root_t.inode_next_free,X
+    sta.w fs_memdev_inode_t.inode_next,X
     ; NODE->next = NULL
     lda #0
     sta [$00],Y
@@ -835,12 +835,12 @@ _memfs_alloc:
     lda [$03],Y
     sta [$00],Y
 ; update root data
-    lda.w fs_memdev_root_t.num_used_inodes,X
+    lda.w fs_memdev_inode_t.root.num_used_inodes,X
     inc A
-    sta.w fs_memdev_root_t.num_used_inodes,X
-    lda.w fs_memdev_root_t.num_free_inodes,X
+    sta.w fs_memdev_inode_t.root.num_used_inodes,X
+    lda.w fs_memdev_inode_t.root.num_free_inodes,X
     dec A
-    sta.w fs_memdev_root_t.num_free_inodes,X
+    sta.w fs_memdev_inode_t.root.num_free_inodes,X
 ; pull bank
     plb
 ; clear directory, if type is DIR
@@ -872,7 +872,7 @@ _memfs_link:
     stz.b $00
     sta.b $00+1
     ; loop until free slot found
-    ldy #fs_memdev_inode_t.dir.dirent
+    ldy #fs_memdev_inode_t.dir.entries
 @loop_search_slot:
         lda [$00],Y
         beq @found_slot
@@ -957,7 +957,7 @@ _memfs_unlink:
     +:
     lda 2+$06,S
     beq @fail
-; check that (NODE is FILE) or (NODE is DIR and (NODE.dirent[0].blockId != 0 or NODE.nlink > 1))
+; check that (NODE is FILE) or (NODE is DIR and (NODE.entries[0].blockId != 0 or NODE.nlink > 1))
     ldy #fs_memdev_inode_t.type
     lda [NODE_PTR],Y
     cmp #FS_INODE_TYPE_FILE ; NODE is FILE => success
@@ -968,9 +968,9 @@ _memfs_unlink:
         lda [NODE_PTR],Y
         cmp #2
         bcs @node_is_good ; NODE.nlink >= 2 => success
-        ldy #fs_memdev_inode_t.dir.dirent.1.blockId
+        ldy #fs_memdev_inode_t.dir.entries.1.blockId
         lda [NODE_PTR],Y
-        bne @fail ; NODE.dirent[0].blockId != 0 => fail
+        bne @fail ; NODE.entries[0].blockId != 0 => fail
 @node_is_good:
 ; decrement link count
     ldy #fs_memdev_inode_t.nlink
@@ -981,7 +981,7 @@ _memfs_unlink:
     sta [NODE_PTR],Y
 ; remove from parent
     ; go to index of node
-    ldy #fs_memdev_inode_t.dir.dirent.1
+    ldy #fs_memdev_inode_t.dir.entries.1
 @loop_search_node:
         lda [PARENT_PTR],Y
         cmp.b NODE_PTR+1
@@ -1028,12 +1028,12 @@ _memfs_unlink:
         stz.b ROOT_PTR ; [$03] is now ROOT
         rep #$30
         ; NODE->next = ROOT->next
-        ldy #fs_memdev_root_t.inode_next_free
+        ldy #fs_memdev_inode_t.inode_next
         lda [ROOT_PTR],Y
         ldy #fs_memdev_inode_t.inode_next
         sta [NODE_PTR],Y
         ; ROOT->next = NODE
-        ldy #fs_memdev_root_t.inode_next_free
+        ldy #fs_memdev_inode_t.inode_next
         lda.b NODE_PTR+1
         sta [ROOT_PTR],Y
         ; NODE->type = NONE
@@ -1041,12 +1041,12 @@ _memfs_unlink:
         lda #FS_INODE_TYPE_EMPTY
         sta [NODE_PTR],Y
         ; ROOT->num_used_inodes--
-        ldy #fs_memdev_root_t.num_used_inodes
+        ldy #fs_memdev_inode_t.root.num_used_inodes
         lda [ROOT_PTR],Y
         dec A
         sta [ROOT_PTR],Y
         ; ROOT->num_free_inodes++
-        ldy #fs_memdev_root_t.num_free_inodes
+        ldy #fs_memdev_inode_t.root.num_free_inodes
         lda [ROOT_PTR],Y
         inc A
         sta [ROOT_PTR],Y
@@ -1071,12 +1071,12 @@ _memfs_unlink:
             ; DIRECT->next = ROOT->next
             ; TODO: could probably speed up by linking each node together, then
             ; linking root to first node, but this is easier for now
-            ldy #fs_memdev_root_t.inode_next_free
+            ldy #fs_memdev_inode_t.inode_next
             lda [ROOT_PTR],Y
             ldy #fs_memdev_inode_t.inode_next
             sta [DIRECTBLOCK_PTR],Y
             ; ROOT->next = DIRECT
-            ldy #fs_memdev_root_t.inode_next_free
+            ldy #fs_memdev_inode_t.inode_next
             lda.b DIRECTBLOCK_PTR+1
             sta [ROOT_PTR],Y
             ; DIRECT->type = NONE
@@ -1088,12 +1088,12 @@ _memfs_unlink:
             lda #0
             sta [DIRECTBLOCK_PTR],Y
             ; ROOT->num_used_inodes--
-            ldy #fs_memdev_root_t.num_used_inodes
+            ldy #fs_memdev_inode_t.root.num_used_inodes
             lda [ROOT_PTR],Y
             dec A
             sta [ROOT_PTR],Y
             ; ROOT->num_free_inodes++
-            ldy #fs_memdev_root_t.num_free_inodes
+            ldy #fs_memdev_inode_t.root.num_free_inodes
             lda [ROOT_PTR],Y
             inc A
             sta [ROOT_PTR],Y
@@ -1129,21 +1129,77 @@ _memfs_info:
     stz.b $03
     lda $07,S
     sta.b $03+1 ; [$03] = inode*
-; load data
+; check type
     ldy #fs_memdev_inode_t.type
-    lda [$03],Y
+    lda [$03]
+    cmp #FS_INODE_TYPE_FILE
+    beq _memfs_info_file
+    cmp #FS_INODE_TYPE_DIR
+    beq _memfs_info_dir
+    cmp #FS_INODE_TYPE_ROOT
+    beq _memfs_info_root
+; fail
     ldy #fs_inode_info_t.type
+    lda #FS_INODE_TYPE_EMPTY
     sta [$00],Y
-    ldy #fs_memdev_inode_t.size
-    lda [$03],Y
+    ldy #fs_inode_info_t.mode
+    lda #0
+    sta [$00],Y
     ldy #fs_inode_info_t.size
     sta [$00],Y
-    ldy #fs_memdev_inode_t.size+2
-    lda [$03],Y
     ldy #fs_inode_info_t.size+2
     sta [$00],Y
 ; end
     rtl
+
+; NOTE: `type` and `size` line up between inode and info types
+
+_memfs_info_root:
+    ldy #fs_memdev_inode_t.type
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size+2
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_inode_info_t.mode
+    lda #FS_DEVICE_MODE_READABLE
+    sta [$00],Y
+    rtl
+
+_memfs_info_file:
+    ldy #fs_memdev_inode_t.type
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size+2
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_inode_info_t.mode
+    lda #FS_DEVICE_MODE_READABLE | FS_DEVICE_MODE_WRITABLE
+    sta [$00],Y
+    rtl
+
+_memfs_info_dir:
+    ldy #fs_memdev_inode_t.type
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_memdev_inode_t.size+2
+    lda [$03],Y
+    sta [$00],Y
+    ldy #fs_inode_info_t.mode
+    lda #FS_DEVICE_MODE_READABLE
+    sta [$00],Y
+    rtl
+
+_mem
 
 .DSTRUCT KFS_DeviceType_Mem INSTANCEOF fs_device_template_t VALUES
     fsname .db "MEM\0"

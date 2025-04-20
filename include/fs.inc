@@ -1,22 +1,31 @@
-.DEFINE FS_BLOCK_SIZE 256
-
+; Empty or invalid inode
 .DEFINE FS_INODE_TYPE_EMPTY 0
+; INode containing file data
 .DEFINE FS_INODE_TYPE_FILE 1
+; INode containing a directory
 .DEFINE FS_INODE_TYPE_DIR 2
+; INode which links to a separate device - currently unused
 .DEFINE FS_INODE_TYPE_MOUNT 3
+; INode for the root of a device.
 .DEFINE FS_INODE_TYPE_ROOT 4
+; INode for a 'stream', such as stdio
+.DEFINE FS_INODE_TYPE_STREAM 5
 
 .DEFINE FS_MAX_FILENAME_LEN 14
 
-.DEFINE FS_DEVICE_NULL 0
-.DEFINE FS_DEVICE_SRAM 1 ; SRAM device
-.DEFINE FS_DEVICE_ROM 2 ; ROM device
-
+; This OFT entry is currently in use
 .DEFINE FS_TABLE_FLAG_OPEN $01
 
+; This OFT entry is able to be read from
 .DEFINE FS_TABLE_MODE_READ $80
+; This OFT entry is able to be written to
 .DEFINE FS_TABLE_MODE_WRITE $40
+; Combination of read and write modes
 .DEFINE FS_TABLE_MODE_RDWR $C0
+
+.DEFINE FS_DEVICE_MODE_READABLE $01
+.DEFINE FS_DEVICE_MODE_WRITABLE $02
+.DEFINE FS_DEVICE_MODE_
 
 .DEFINE FS_OFT_SIZE 64
 .DEFINE FS_DEVICE_TYPE_MAX_COUNT 8
@@ -73,8 +82,17 @@
 
 .STRUCT fs_inode_info_t
     type dw
+    mode dw
     size dsw 2
 .ENDST
+
+.STRUCT fs_handle_instance_t
+    state db
+    fileptr dw
+    device dw
+    inode dw
+.ENDST
+
 
 .STRUCT fs_device_instance_t
     ; device template - defines functionality
@@ -85,13 +103,6 @@
     data ds 16
 .ENDST
 
-.STRUCT fs_handle_instance_t
-    state db
-    fileptr dw
-    device dw
-    inode dw
-.ENDST
-
 .STRUCT fs_device_instance_mem_data_t SIZE 16
     bank_first db
     bank_last db
@@ -100,13 +111,14 @@
     blocks_per_bank db
     num_banks db
     blocks_total dw
+    mode dw
 .ENDST
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;   FILESYSTEM SPECIFIC STUFF BELOW  ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-.DEFINE FSMEM_DIR_MAX_INODE_COUNT 14
+.DEFINE FSMEM_DIR_MAX_INODE_COUNT 12 ; matches 192 bytes of file
 .DEFINE FSMEM_DIR_INODESIZE (FS_MAX_FILENAME_LEN+2)
 .ASSERT ((FSMEM_DIR_INODESIZE) & (FSMEM_DIR_INODESIZE-1)) == 0
 ; this will never change; inodes are always page-aligned
@@ -127,50 +139,45 @@
     inode_next dw
     _reserved dsw 3
     .UNION file
-        ; direct blocks of data
-        directBlocks dsw 16 ; up to 4KiB of data (16iN × 256B/iN)
-        ; indirect blocks storing inode IDs of data
-        indirectBlocks dsw 4 ; up to 128KiB data (4iN × 128iN/iN × 256B/iN)
         ; reserved data; maybe double-indirect blocks?
         ; would be (4iN × 128iN/iN × 128iN/iN × 256) = 16 MiB, or entire addressable space.
         ; which kinda works out to be honest.
         ; though, problem here, is that fs_handle_instance_t.fileptr is only up to 64KiB.
         _reserved dsw 4
+        ; indirect blocks storing inode IDs of data
+        indirectBlocks dsw 4 ; up to 128KiB data (4iN × 128iN/iN × 256B/iN)
+        ; direct blocks of data
+        directBlocks dsw 16 ; up to 4KiB of data (16iN × 256B/iN)
         ; first 192 bytes of data are stored directly in the inode
         directData ds 192 ; up to 192B of data
     .NEXTU dir
+        _reserved ds 48
         ; list of directory entries
-        _reserved ds 16
-        dirent INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
+        ; may be expanded with the use of directBlocks later
+        entries INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
+    .NEXTU root
+    ; magicnumber for comparison
+        magicnum ds 4
+    ; layout info
+        bank_first db
+        bank_last db
+        page_first db
+        page_last db
+        num_blocks_per_bank db
+        num_banks db
+        num_blocks_total dw
+        mode dw
+    ; inode layout
+        ; number of used inodes
+        num_used_inodes dw
+        ; total number of inodes
+        num_total_inodes dw
+        ; number of free inodes
+        num_free_inodes dw
+    ; directory
+        _reserved ds 28
+        entries INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
     .ENDU
-.ENDST
-
-; root structure
-.STRUCT fs_memdev_root_t SIZE 256
-; header 'type' info from inode
-    type dw
-; magicnumber for comparison
-    magicnum ds 4
-; layout info
-    bank_first db
-    bank_last db
-    page_first db
-    page_last db
-    num_blocks_per_bank db
-    num_banks db
-    num_blocks_total dw
-; inode layout
-    ; number of used inodes
-    num_used_inodes dw
-    ; total number of inodes
-    num_total_inodes dw
-    ; number of free inodes
-    num_free_inodes dw
-    ; first free inode in linked list
-    inode_next_free dw
-; directory
-    _reserved ds 10
-    dirent INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
 .ENDST
 
 .STRUCT fs_memdev_direct_data_block SIZE 256

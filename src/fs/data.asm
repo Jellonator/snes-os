@@ -2,34 +2,36 @@
 
 .SECTION "FS_Header" BANK $00 SLOT "ROM" ORGA $8000 FORCE
 
-.DSTRUCT INSTANCEOF fs_memdev_root_t VALUES
+.DSTRUCT INSTANCEOF fs_memdev_inode_t VALUES
     type .dw FS_INODE_TYPE_ROOT
-    magicnum .db "MEM\0"
+    nlink .dw 0
+    size .dw 5, 0
+    inode_next .dw $0000
+    root.magicnum .db "MEM\0"
 ; layout info
-    bank_first      .db $80
-    bank_last       .db $FF
-    page_first      .db $80
-    page_last       .db $FF
-    num_blocks_per_bank .db $80
-    num_banks        .db $80
-    num_blocks_total .dw $4000
+    root.bank_first      .db $80
+    root.bank_last       .db $FF
+    root.page_first      .db $80
+    root.page_last       .db $FF
+    root.num_blocks_per_bank .db $80
+    root.num_banks        .db $80
+    root.num_blocks_total .dw $4000
 ; inode layout
-    num_used_inodes  .dw $0005
-    num_total_inodes .dw $4000
-    num_free_inodes  .dw ($4000 - 5)
-    inode_next_free  .dw $0000
+    root.num_used_inodes  .dw $0005
+    root.num_total_inodes .dw $4000
+    root.num_free_inodes  .dw ($4000 - 5)
 ; directory
-    dirent.1.blockId .dw $0081
-    dirent.1.name .db "bar\0"
-    dirent.2.blockId .dw $0082
-    dirent.2.name .db "foo\0"
-    dirent.3.blockId .dw $0083
-    dirent.3.name .db "hello\0"
-    dirent.4.blockId .dw $0085
-    dirent.4.name .db "bee\0"
-    dirent.5.blockId .dw $0086
-    dirent.5.name .db "long\0"
-    dirent.6.blockId .dw $0000
+    root.entries.1.blockId .dw $0081
+    root.entries.1.name .db "bar\0"
+    root.entries.2.blockId .dw $0082
+    root.entries.2.name .db "foo\0"
+    root.entries.3.blockId .dw $0083
+    root.entries.3.name .db "hello\0"
+    root.entries.4.blockId .dw $0085
+    root.entries.4.name .db "bee\0"
+    root.entries.5.blockId .dw $0086
+    root.entries.5.name .db "long\0"
+    root.entries.6.blockId .dw $0000
 .ENDST
 
 ; $0081 FILE: 'bar'
@@ -38,7 +40,7 @@
     nlink .dw 1
     size .dw 5, 0
     inode_next .dw $0000
-    file.directData .db "BAR!\0"
+    file.directData .db "BAR!\n"
 .ENDST
 
 ; $0082 FILE: 'foo'
@@ -47,41 +49,46 @@
     nlink .dw 1
     size .dw 5, 0
     inode_next .dw $0000
-    file.directData .db "FOO!\0"
+    file.directData .db "FOO!\n"
 .ENDST
 
 ; $0083 DIR: 'hello'
 .DSTRUCT INSTANCEOF fs_memdev_inode_t VALUES
     type .dw FS_INODE_TYPE_DIR
     nlink .dw 1
+    size .dw 1, 0
     inode_next .dw $0000
 ; directory
-    dir.dirent.1.blockId .dw $0084
-    dir.dirent.1.name .db "world\0"
-    dir.dirent.2.blockId .dw $0000
+    dir.entries.1.blockId .dw $0084
+    dir.entries.1.name .db "world\0"
+    dir.entries.2.blockId .dw $0000
 .ENDST
 
 ; $0084 FILE: 'world'
 .DSTRUCT INSTANCEOF fs_memdev_inode_t VALUES
     type .dw FS_INODE_TYPE_FILE
     nlink .dw 1
-    size .dw 14, 0
+    size .dw 15, 0
     inode_next .dw $0000
-    file.directData .db "Hello, World!\0"
+    file.directData .db "Hello, World!\n"
 .ENDST
 
 ; $0085 FILE: 'bee'
 .DSTRUCT INSTANCEOF fs_memdev_inode_t VALUES
     type .dw FS_INODE_TYPE_FILE
     nlink .dw 1
-    size .dw 192, 0
+    size .dw 249, 0
     inode_next .dw $0000
+    file.directBlocks:
+        .dw $0180
     file.directData:
-        .db "According to all known laws of aviation, "
-        .db "there is no way that a bee should be able to fly. "
-        .db "Its wings are too small to get its fat little body off the ground. "
-        .db "The bee, of course, flies anyways."
-        ;" Because bees don't care what humans think is impossible.\0"
+        .db "According to all known laws\n"
+        .db "of aviation, there is no way\n"
+        .db "that a bee should be able to\n"
+        .db "fly. Its wings are too small\n"
+        .db "to get its fat little body\n"
+        .db "off the ground. The bee, of\n"
+        .db "course, flies anyways."
 .ENDST
 
 ; $0086 FILE: 'long'
@@ -427,6 +434,17 @@
         .db "BLK 10 LINE 109\n"
         .db "BLK 10 LINE 10A\n"
         .db "-END OF DIRECT-\n"
+.ENDST
+
+.ENDS
+
+.SECTION "FS_Data_01" BANK $01 SLOT "ROM" ORGA $8000 FORCE
+
+.DSTRUCT INSTANCEOF fs_memdev_direct_data_block VALUES
+    data:
+        .db "\n"
+        .db "Because bees don't care what\n"
+        .db "humans think is impossible.\n"
 .ENDST
 
 .ENDS
