@@ -826,13 +826,6 @@ _shell_init:
 
 _shell_render:
     jsl vUpdatePrinter
-    ; test flags
-    sep #$20
-    lda #SHFLAG_UPDATE_CHARS
-    trb.b bUpdateFlags
-    beq +
-        jsr _shell_update_charset
-    +:
     ; apply draw buf
     rep #$20
     lda.b wLenDrawBuf
@@ -852,6 +845,13 @@ _shell_render:
         lda #$01
         sta.l MDMAEN
     @skipdrawbuf:
+    ; test flags
+    sep #$20
+    lda #SHFLAG_UPDATE_CHARS
+    trb.b bUpdateFlags
+    beq +
+        jsr _shell_update_charset
+    +:
     ; upload sprites
     jsl vUploadSpriteData__
     rtl
@@ -867,6 +867,14 @@ _shell_update:
     beq +
         sep #$20
         lda.b bSelectPos
+        cmp #1*KEYBOARD_INPUT_COLUMNS-1
+        beq @wrap_right
+        cmp #2*KEYBOARD_INPUT_COLUMNS-1
+        beq @wrap_right
+        cmp #3*KEYBOARD_INPUT_COLUMNS-1
+        beq @wrap_right
+        cmp #4*KEYBOARD_INPUT_COLUMNS-1
+        beq @wrap_right
         inc A
         cmp #40
         bcc ++
@@ -874,6 +882,11 @@ _shell_update:
             sbc #40
         ++:
         sta.b bSelectPos
+        jmp +
+        @wrap_right:
+            sec
+            sbc #9
+            sta.b bSelectPos
     +:
     rep #$20
     lda.l kJoy1Press
@@ -881,12 +894,25 @@ _shell_update:
     beq +
         sep #$20
         lda.b bSelectPos
+        cmp #0*KEYBOARD_INPUT_COLUMNS
+        beq @wrap_left
+        cmp #1*KEYBOARD_INPUT_COLUMNS
+        beq @wrap_left
+        cmp #2*KEYBOARD_INPUT_COLUMNS
+        beq @wrap_left
+        cmp #3*KEYBOARD_INPUT_COLUMNS
+        beq @wrap_left
         dec A
         bpl ++
             clc
             adc #40
         ++:
         sta.b bSelectPos
+        jmp +
+        @wrap_left:
+            clc
+            adc #9
+            sta.b bSelectPos
     +:
     rep #$20
     lda.l kJoy1Press
