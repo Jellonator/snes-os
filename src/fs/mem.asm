@@ -20,6 +20,8 @@ _clear_dir:
     .REPT FSMEM_DIR_MAX_INODE_COUNT INDEX i
         sta.w fs_memdev_inode_t.dir.entries.{i+1}.blockId,X
     .ENDR
+    sta.w fs_memdev_inode_t.size,X
+    sta.w fs_memdev_inode_t.size+2,X
     rts
 
 ; $06,S: fs_device_instance_t* device
@@ -868,22 +870,16 @@ _memfs_link:
     lda $04,S
     stz.b $00
     sta.b $00+1
-    ; loop until free slot found
-    ldy #fs_memdev_inode_t.dir.entries
-@loop_search_slot:
-        lda [$00],Y
-        beq @found_slot
-        tya
-        clc
-        adc #16
-        tay
-        cmp #256
-        bcc @loop_search_slot
-        ; reached end of inode, fail
-        lda #0
-        rtl
-@found_slot:
-    ; sty.b $06
+; get index of first free slot
+    ldy #fs_memdev_inode_t.size
+    lda [$00],Y
+    asl
+    asl
+    asl
+    asl
+    clc
+    adc #fs_memdev_inode_t.dir.entries
+    tay
 ; copy source into slot
     lda $06,S
     sta [$00],Y
@@ -909,6 +905,11 @@ _memfs_link:
         lda #0
         sta [$00],Y
     +:
+; increment parent's size
+    ldy #fs_inode_info_t.size
+    lda [$00],Y
+    inc A
+    sta [$00],Y
 ; indicate to source that it has been linked to
     lda $06,S
     stz.b $00
@@ -1006,6 +1007,11 @@ _memfs_unlink:
 @search_failed:
     ; copy one empty entry
     lda #0
+    sta [PTR_PARENT],Y
+    ; decrement parent's size
+    ldy #fs_memdev_inode_t.size
+    lda [PTR_PARENT],Y
+    dec A
     sta [PTR_PARENT],Y
     ; handle deletion, possibly
     ldy #fs_memdev_inode_t.nlink

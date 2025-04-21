@@ -11,24 +11,37 @@
 ; INode for a 'stream', such as stdio
 .DEFINE FS_INODE_TYPE_STREAM 5
 
-.DEFINE FS_MAX_FILENAME_LEN 14
-
 ; This OFT entry is currently in use
 .DEFINE FS_TABLE_FLAG_OPEN $01
-
 ; This OFT entry is able to be read from
 .DEFINE FS_TABLE_MODE_READ $80
 ; This OFT entry is able to be written to
 .DEFINE FS_TABLE_MODE_WRITE $40
-; Combination of read and write modes
-.DEFINE FS_TABLE_MODE_RDWR $C0
 
-.DEFINE FS_DEVICE_MODE_READABLE $01
-.DEFINE FS_DEVICE_MODE_WRITABLE $02
-.DEFINE FS_DEVICE_MODE_
+; Maximum length of filename
+.DEFINE FS_MAX_FILENAME_LEN 14
 
+; Device has files which can be read from
+.DEFINE FS_DEVICE_MODE_READABLE $80
+; Device has files which can be written to
+.DEFINE FS_DEVICE_MODE_WRITABLE $40
+; Device is able to create files
+.DEFINE FS_DEVICE_MODE_FILE_CREATE $01
+; Device is able to link files
+.DEFINE FS_DEVICE_MODE_FILE_LINK $10
+; Device is able to unlink files
+.DEFINE FS_DEVICE_MODE_FILE_UNLINK $08
+
+; File is able to be read from
+.DEFINE FS_FILE_MODE_READABLE $80
+; File is able to be written to
+.DEFINE FS_FILE_MODE_WRITABLE $40
+
+; Maximum number of open files
 .DEFINE FS_OFT_SIZE 64
+; Maximum number of device types
 .DEFINE FS_DEVICE_TYPE_MAX_COUNT 8
+; Maximum number of mounted devices
 .DEFINE FS_DEVICE_INSTANCE_MAX_COUNT 8
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -80,12 +93,14 @@
     info dw
 .ENDST
 
+; Info about an inode, usually read from a device.
 .STRUCT fs_inode_info_t
     type dw
     mode dw
     size dsw 2
 .ENDST
 
+; Handle to an open file
 .STRUCT fs_handle_instance_t
     state db
     fileptr dw
@@ -93,7 +108,7 @@
     inode dw
 .ENDST
 
-
+; Mounted device instance
 .STRUCT fs_device_instance_t
     ; device template - defines functionality
     template dw
@@ -101,17 +116,6 @@
     mount_name ds FS_MAX_FILENAME_LEN
     ; custom data, depends on device
     data ds 16
-.ENDST
-
-.STRUCT fs_device_instance_mem_data_t SIZE 16
-    bank_first db
-    bank_last db
-    page_first db
-    page_last db
-    blocks_per_bank db
-    num_banks db
-    blocks_total dw
-    mode dw
 .ENDST
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -133,11 +137,17 @@
 ; inode structure
 ; inodes form a linked list, to make allocating and releasing them fast.
 .STRUCT fs_memdev_inode_t SIZE 256
+    ; This inode's type
     type dw
+    ; Number of links to this inode
     nlink dw
+    ; FILE - Number of bytes stored in this inode
+    ; DIR - Number of files linked to this inode
     size dsw 2
+    ; Next available inode
     inode_next dw
     _reserved dsw 3
+    ; FS_INODE_TYPE_FILE
     .UNION file
         ; reserved data; maybe double-indirect blocks?
         ; would be (4iN × 128iN/iN × 128iN/iN × 256) = 16 MiB, or entire addressable space.
@@ -150,11 +160,13 @@
         directBlocks dsw 16 ; up to 4KiB of data (16iN × 256B/iN)
         ; first 192 bytes of data are stored directly in the inode
         directData ds 192 ; up to 192B of data
+    ; FS_INODE_TYPE_DIR
     .NEXTU dir
         _reserved ds 48
         ; list of directory entries
         ; may be expanded with the use of directBlocks later
         entries INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
+    ; FS_INODE_TYPE_ROOT
     .NEXTU root
     ; magicnumber for comparison
         magicnum ds 4
@@ -181,10 +193,24 @@
     .ENDU
 .ENDST
 
+; layout of a direct data block (just 256b of data)
 .STRUCT fs_memdev_direct_data_block SIZE 256
     data ds 256
 .ENDST
 
+; layout of an indirect data block (128 inodes)
 .STRUCT fs_memdev_indirect_data_block SIZE 256
     inodes dsw 128
+.ENDST
+
+; data used to mount a device
+.STRUCT fs_device_instance_mem_data_t SIZE 16
+    bank_first db
+    bank_last db
+    page_first db
+    page_last db
+    blocks_per_bank db
+    num_banks db
+    blocks_total dw
+    mode dw
 .ENDST
