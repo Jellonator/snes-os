@@ -13,10 +13,9 @@
     kRendererDP dw
     kRendererDB db
     ; temporary memory for kernel processes which want to use the direct page.
-    ; only use if interrupts are disabled
-    kTmpPtrL dl
-    kTmpPtrL2 dl
-    kTmpBuffer ds 128
+    ; only use if interrupts are disabled.
+    ; be careful not to use too much, as this space is also used by the init process' stack.
+    kTmpBuffer ds 64
 .ENDS
 
 .RAMSECTION "7E" BANK $7E SLOT "ExtraMemory" ORGA $2000 FORCE

@@ -5,6 +5,14 @@
 .BANK $01 SLOT "ROM"
 .SECTION "KFSMem" FREE
 
+; General defines used for most memfs functions
+.DEFINE PTR_NODE (kTmpBuffer+0)
+.DEFINE PTR_ROOT (kTmpBuffer+3)
+.DEFINE PTR_PARENT (kTmpBuffer+6)
+.DEFINE PTR_DIRECT (kTmpBuffer+9)
+.DEFINE PTR_INDIRECT (kTmpBuffer+12)
+.DEFINE PTR_BUFFER (kTmpBuffer+15)
+
 ; Clear directory stored in X
 _clear_dir:
     rep #$20
@@ -55,68 +63,68 @@ _memfs_clear_device_instance:
     inc A
     xba
     and #$FF00
-    sta.b kTmpPtrL
+    sta.b PTR_NODE
     sep #$20
     lda.w fs_memdev_inode_t.root.bank_first,X
-    sta.b kTmpPtrL+2
+    sta.b PTR_NODE+2
     @loop_bank:
         @loop_block:
             rep #$20
             ; TYPE = EMPTY
             lda #FS_INODE_TYPE_EMPTY
             ldy #fs_memdev_inode_t.type
-            sta [kTmpPtrL],Y
+            sta [PTR_NODE],Y
             ; INODE_NEXT = NULL
             lda #0
             ldy #fs_memdev_inode_t.inode_next
-            sta [kTmpPtrL],Y ; initialize inode_next to NULL; will be initialized in 'inc' code
+            sta [PTR_NODE],Y ; initialize inode_next to NULL; will be initialized in 'inc' code
             ; NLINK = 0
             ldy #fs_memdev_inode_t.nlink
-            sta [kTmpPtrL],Y
+            sta [PTR_NODE],Y
             ; SIZE = 0
             ldy #fs_memdev_inode_t.size
-            sta [kTmpPtrL],Y
+            sta [PTR_NODE],Y
             ldy #fs_memdev_inode_t.size+2
-            sta [kTmpPtrL],Y
+            sta [PTR_NODE],Y
             ; check if last block
             sep #$20
-            lda.b kTmpPtrL+1
+            lda.b PTR_NODE+1
             cmp.w fs_memdev_inode_t.root.page_last,X
             beq @loop_block_end
             ; initialize inode_next of node
             rep #$20
-            lda.b kTmpPtrL+1
+            lda.b PTR_NODE+1
             inc A
             ldy #fs_memdev_inode_t.inode_next
-            sta [kTmpPtrL],Y
+            sta [PTR_NODE],Y
             ; increment pointer
-            lda.b kTmpPtrL+1
+            lda.b PTR_NODE+1
             inc A
-            sta.b kTmpPtrL+1
+            sta.b PTR_NODE+1
             jmp @loop_block
         @loop_block_end:
         ; check if last bank
         sep #$20
-        lda.b kTmpPtrL+2
+        lda.b PTR_NODE+2
         cmp.w fs_memdev_inode_t.root.bank_last,X
         beq @loop_bank_end
         ; initialize inode_next of node
-        lda.b kTmpPtrL+2
+        lda.b PTR_NODE+2
         inc A
         xba
         lda.w fs_memdev_inode_t.root.page_first,X
         rep #$20
         ldy #fs_memdev_inode_t.inode_next
-        sta [kTmpPtrL],Y
+        sta [PTR_NODE],Y
         ; increment pointer
-        lda.b kTmpPtrL+2
+        lda.b PTR_NODE+2
         inc A
-        sta.b kTmpPtrL+2
+        sta.b PTR_NODE+2
         ; reset first page
         lda.w fs_memdev_inode_t.root.page_first,X
         xba
         and #$FF00
-        sta.b kTmpPtrL
+        sta.b PTR_NODE
         jmp @loop_bank
     @loop_bank_end:
     ; clear directory
@@ -340,9 +348,8 @@ _memfs_lookup:
 ; nbytes: $04,S
 _memfs_read:
     ; TODO: implement indirect blocks
-    .DEFINE BYTES_TO_READ kTmpBuffer
-    .DEFINE BYTES_LEFT (kTmpBuffer+2)
-    .DEFINE DIRECTBLOCK_DATA_PTR (kTmpBuffer+4)
+    .DEFINE BYTES_TO_READ (kTmpBuffer+$20)
+    .DEFINE BYTES_LEFT (kTmpBuffer+$22)
     rep #$30
     lda $04,S
     bne @has_bytes
@@ -357,16 +364,16 @@ _memfs_read:
     lda 2+$09,S
     tax
     lda.l $7E0000 + fs_handle_instance_t.inode,X
-    stz.b kTmpPtrL
-    sta.b kTmpPtrL+1
+    stz.b PTR_NODE
+    sta.b PTR_NODE+1
     ; put buffer ptr
     lda 2+$06,S
-    sta.b kTmpPtrL2
+    sta.b PTR_BUFFER
     lda 2+$08,S
-    sta.b kTmpPtrL2+2
+    sta.b PTR_BUFFER+2
     ; check type
     ldy #fs_memdev_inode_t.type
-    lda [kTmpPtrL],Y
+    lda [PTR_NODE],Y
     cmp #FS_INODE_TYPE_FILE
     beq +
         ; read directory (or root as if it were a directory)
@@ -383,7 +390,7 @@ _memfs_read:
     lda 2+$04,S
     sta.b BYTES_TO_READ
     ldy #fs_memdev_inode_t.size
-    lda [kTmpPtrL],Y
+    lda [PTR_NODE],Y
     sec
     ; TODO: fail if fileptr is invalid?
     sbc.l $7E0000 + fs_handle_instance_t.fileptr,X
@@ -406,9 +413,9 @@ _memfs_read:
     @loop_copy:
         cpy #256 ; if Y reaches past end of direct data, switch to direct blocks
         bcs @begin_directblock_data_read
-        lda [kTmpPtrL],Y
-        sta [kTmpPtrL2]
-        inc.b kTmpPtrL2
+        lda [PTR_NODE],Y
+        sta [PTR_BUFFER]
+        inc.b PTR_BUFFER
         dec.b BYTES_LEFT
         beq @end_read
         iny
@@ -429,9 +436,9 @@ _memfs_read:
     adc #fs_memdev_inode_t.file.directBlocks
     tay
     ; write direct data pointer
-    lda [kTmpPtrL],Y
-    stz.b DIRECTBLOCK_DATA_PTR
-    sta.b DIRECTBLOCK_DATA_PTR+1
+    lda [PTR_NODE],Y
+    stz.b PTR_DIRECT
+    sta.b PTR_DIRECT+1
     ; set Y to local index
     txa
     and #$00FF
@@ -439,9 +446,9 @@ _memfs_read:
 @loop_directblock_copy:
         cpy #256
         bcs @next_directblock
-        lda [DIRECTBLOCK_DATA_PTR],Y
-        sta [kTmpPtrL2]
-        inc.b kTmpPtrL2
+        lda [PTR_DIRECT],Y
+        sta [PTR_BUFFER]
+        inc.b PTR_BUFFER
         dec.b BYTES_LEFT
         beq @end_read
         iny
@@ -475,8 +482,8 @@ _memfs_read:
 _memfs_read_dir:
     .ACCU 16
     .INDEX 16
-    .DEFINE BYTES_READ (kTmpBuffer+2)
-    .DEFINE FILEPTR (kTmpBuffer+4)
+    .DEFINE BYTES_READ (kTmpBuffer+$24)
+    .DEFINE FILEPTR (kTmpBuffer+$26)
     ; check size
     lda 2+$04,S
     sta.b BYTES_TO_READ
@@ -485,12 +492,12 @@ _memfs_read_dir:
     sta.b FILEPTR
     stz.b BYTES_READ
     ; inc inode to directData+fileptr
-    lda.b kTmpPtrL
+    lda.b PTR_NODE
     clc
     adc #fs_memdev_inode_t.dir.entries
     clc
     adc.l $7E0000 + fs_handle_instance_t.fileptr,X
-    sta.b kTmpPtrL
+    sta.b PTR_NODE
     ldy #2
     ; copy bytes
     jmp @loop_copy_begin
@@ -508,18 +515,18 @@ _memfs_read_dir:
         and #FSMEM_DIR_INODESIZE-1
         cmp #FS_MAX_FILENAME_LEN
         bne @loop_copy_not_eol
-            lda [kTmpPtrL],Y
+            lda [PTR_NODE],Y
             cmp #0
             beq @loop_copy_end
             inc.b FILEPTR
             inc.b FILEPTR
-            inc.b kTmpPtrL
-            inc.b kTmpPtrL
+            inc.b PTR_NODE
+            inc.b PTR_NODE
             sep #$20
             lda #'\n'
-            sta [kTmpPtrL2]
+            sta [PTR_BUFFER]
             rep #$20
-            inc.b kTmpPtrL2
+            inc.b PTR_BUFFER
             jmp @loop_copy
         ; if fileptr%16 == 0, then end if inode is null, or fileptr >= 14*16
     @loop_copy_not_eol:
@@ -527,27 +534,27 @@ _memfs_read_dir:
         bcs @loop_copy_end
         cmp #0
         bne @loop_copy_not_null
-            lda [kTmpPtrL]
+            lda [PTR_NODE]
             cmp #0
             beq @loop_copy_end
             ; jmp @loop_copy
     @loop_copy_not_null:
         sep #$20
-        lda [kTmpPtrL],Y
+        lda [PTR_NODE],Y
         cmp #0
         bne +
             lda #'\n'
-            sta [kTmpPtrL2]
+            sta [PTR_BUFFER]
             rep #$20
-            inc.b kTmpPtrL
-            inc.b kTmpPtrL2
+            inc.b PTR_NODE
+            inc.b PTR_BUFFER
             inc.b FILEPTR
             jmp @loop_copy_loop_inc
         +:
-        sta [kTmpPtrL2]
+        sta [PTR_BUFFER]
         rep #$20
-        inc.b kTmpPtrL
-        inc.b kTmpPtrL2
+        inc.b PTR_NODE
+        inc.b PTR_BUFFER
         inc.b FILEPTR
         jmp @loop_copy
         ; if byte was null, skip until (fileptr%16) is 0
@@ -556,7 +563,7 @@ _memfs_read_dir:
             bit #$000F
             beq @loop_copy
             inc.b FILEPTR
-            inc.b kTmpPtrL
+            inc.b PTR_NODE
             jmp @loop_copy_loop_inc
     @loop_copy_end:
     ; update fileptr
@@ -571,7 +578,6 @@ _memfs_read_dir:
     rtl
     .UNDEFINE BYTES_TO_READ
     .UNDEFINE BYTES_LEFT
-    .UNDEFINE DIRECTBLOCK_DATA_PTR
     .UNDEFINE BYTES_READ
     .UNDEFINE FILEPTR
 
@@ -583,15 +589,10 @@ _memfs_read_dir:
 _memfs_write:
     ; TODO: write to fileptr, only increment SIZE if fileptr
     ; eaches past end of file
-    .DEFINE SOURCE kTmpPtrL
-    .DEFINE DEST kTmpPtrL2
-    .DEFINE BYTES_TO_WRITE kTmpBuffer
-    .DEFINE BYTES_TO_WRITE_IN_BLOCK (kTmpBuffer+2)
-    .DEFINE INITIAL_SIZE (kTmpBuffer+4)
-    ; .DEFINE TOTAL_BYTES_WRITTEN (kTmpBuffer+6)
-    .DEFINE ROOT_PTR (kTmpBuffer+8)
-    .DEFINE DIRECT_PTR (kTmpBuffer+11)
-    .DEFINE DIRECT_INDEX (kTmpBuffer+14)
+    .DEFINE BYTES_TO_WRITE (kTmpBuffer+$20)
+    .DEFINE BYTES_TO_WRITE_IN_BLOCK (kTmpBuffer+$22)
+    .DEFINE INITIAL_SIZE (kTmpBuffer+$24)
+    .DEFINE DIRECT_INDEX (kTmpBuffer+$28)
     rep #$30
 ; check nbytes > 0
     lda $04,S
@@ -605,22 +606,22 @@ _memfs_write:
 ; get dest ptr
     lda 2+$09,S
     tax
-    stz.b DEST
+    stz.b PTR_NODE
     lda.l $7E0000 + fs_handle_instance_t.inode,X
-    sta.b DEST+1
+    sta.b PTR_NODE+1
 ; get source ptr
     lda 2+$06,S
-    sta.b SOURCE
+    sta.b PTR_BUFFER
     lda 2+$07,S
-    sta.b SOURCE+1
+    sta.b PTR_BUFFER+1
 ; determine total number of bytes to write.
 ; can store 192B (direct) + 4KiB (direct block)
     ldy #fs_memdev_inode_t.size
-    lda [DEST],Y
+    lda [PTR_NODE],Y
     sta.b INITIAL_SIZE
     lda #192 + 16 * 256
     sec
-    sbc [DEST],Y
+    sbc [PTR_NODE],Y
     .AMINU P_STACK 2+$04
     sta.b BYTES_TO_WRITE
     cmp #0
@@ -628,39 +629,39 @@ _memfs_write:
 ; write bytes
     ; first, determine WHERE to write
     ldy #fs_memdev_inode_t.size
-    lda [DEST],Y
+    lda [PTR_NODE],Y
     cmp #192
     bcsl @do_write_directblock
     ; write to node's direct data
         ; determine number of bytes to write in block
         lda #192
         sec
-        sbc [DEST],Y
+        sbc [PTR_NODE],Y
         .AMINU P_DIR BYTES_TO_WRITE
         tax
         sta.b BYTES_TO_WRITE_IN_BLOCK
         ; get destination pointer
-        lda [DEST],Y
+        lda [PTR_NODE],Y
         clc
         adc #fs_memdev_inode_t.file.directData
         tay
     @loop_direct_write:
             ; copy byte
             sep #$20
-            lda [SOURCE]
-            sta [DEST],Y
+            lda [PTR_BUFFER]
+            sta [PTR_NODE],Y
             rep #$20
             ; iter
-            inc.b SOURCE
+            inc.b PTR_BUFFER
             iny
             dex
             bne @loop_direct_write
         ; subtract bytes and add to size
         ldy #fs_memdev_inode_t.size
-        lda [DEST],Y
+        lda [PTR_NODE],Y
         clc
         adc.b BYTES_TO_WRITE_IN_BLOCK
-        sta [DEST],Y
+        sta [PTR_NODE],Y
         lda.b BYTES_TO_WRITE
         sec
         sbc.b BYTES_TO_WRITE_IN_BLOCK
@@ -669,7 +670,7 @@ _memfs_write:
 @do_write_directblock:
     ; first, allocate new direct block if (size - 192) % 256 == 0
     ldy #fs_memdev_inode_t.size
-    lda [DEST],Y
+    lda [PTR_NODE],Y
     sec
     sbc #192
     xba
@@ -678,7 +679,7 @@ _memfs_write:
     clc
     adc #fs_memdev_inode_t.file.directBlocks
     sta.b DIRECT_INDEX
-    lda [DEST],Y
+    lda [PTR_NODE],Y
     sec
     sbc #192
     and #$00FF
@@ -690,44 +691,44 @@ _memfs_write:
         tax
         sep #$20
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
-        sta.b ROOT_PTR+2
+        sta.b PTR_ROOT+2
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
-        sta.b ROOT_PTR+1
-        stz.b ROOT_PTR
+        sta.b PTR_ROOT+1
+        stz.b PTR_ROOT
         rep #$20
         ; DIRECT = ROOT->next
         ldy #fs_memdev_inode_t.inode_next
-        lda [ROOT_PTR],Y
-        stz.b DIRECT_PTR
-        sta.b DIRECT_PTR+1
+        lda [PTR_ROOT],Y
+        stz.b PTR_DIRECT
+        sta.b PTR_DIRECT+1
         ; ROOT->next = ROOT->next->next
         ldy #fs_memdev_inode_t.inode_next
-        lda [DIRECT_PTR],Y
+        lda [PTR_DIRECT],Y
         ldy #fs_memdev_inode_t.inode_next
-        sta [ROOT_PTR],Y
+        sta [PTR_ROOT],Y
         ; modify root available nodes
         ldy #fs_memdev_inode_t.root.num_used_inodes
-        lda [ROOT_PTR],Y
+        lda [PTR_ROOT],Y
         inc A
-        sta [ROOT_PTR],Y
+        sta [PTR_ROOT],Y
         ldy #fs_memdev_inode_t.root.num_free_inodes
-        lda [ROOT_PTR],Y
+        lda [PTR_ROOT],Y
         dec A
-        sta [ROOT_PTR],Y
+        sta [PTR_ROOT],Y
         ldy.b DIRECT_INDEX
-        lda.b DIRECT_PTR+1
-        sta [DEST],Y
+        lda.b PTR_DIRECT+1
+        sta [PTR_NODE],Y
         jmp @allocated_direct
 @dont_allocate_direct:
         ldy.b DIRECT_INDEX
-        stz.b DIRECT_PTR
-        lda [DEST],Y
-        sta.b DIRECT_PTR+1
+        stz.b PTR_DIRECT
+        lda [PTR_NODE],Y
+        sta.b PTR_DIRECT+1
 @allocated_direct:
         ; determine number of bytes to write in block
         ldy #fs_memdev_inode_t.size
         ; get dest pointer
-        lda [DEST],Y
+        lda [PTR_NODE],Y
         sec
         sbc #192
         and #$00FF
@@ -743,20 +744,20 @@ _memfs_write:
     @loop_directblock_write:
             ; copy byte
             sep #$20
-            lda [SOURCE]
-            sta [DIRECT_PTR],Y
+            lda [PTR_BUFFER]
+            sta [PTR_DIRECT],Y
             rep #$20
             ; iter
-            inc.b SOURCE
+            inc.b PTR_BUFFER
             iny
             dex
             bne @loop_directblock_write
         ; subtract bytes and add to size
         ldy #fs_memdev_inode_t.size
-        lda [DEST],Y
+        lda [PTR_NODE],Y
         clc
         adc.b BYTES_TO_WRITE_IN_BLOCK
-        sta [DEST],Y
+        sta [PTR_NODE],Y
         lda.b BYTES_TO_WRITE
         sec
         sbc.b BYTES_TO_WRITE_IN_BLOCK
@@ -766,16 +767,12 @@ _memfs_write:
 @end_writing_bytes:
     rep #$30
     ldy #fs_memdev_inode_t.size
-    lda [DEST],Y
+    lda [PTR_NODE],Y
     sec
     sbc.b INITIAL_SIZE
     pld
     rtl
-.UNDEFINE SOURCE
-.UNDEFINE DEST
 .UNDEFINE BYTES_TO_WRITE
-.UNDEFINE ROOT_PTR
-.UNDEFINE DIRECT_PTR
 .UNDEFINE DIRECT_INDEX
 .UNDEFINE INITIAL_SIZE
 .UNDEFINE BYTES_TO_WRITE_IN_BLOCK
@@ -930,23 +927,19 @@ _memfs_link:
 ; dev $08,S
 _memfs_unlink:
     rep #$30
-    .DEFINE NODE_PTR kTmpPtrL
-    .DEFINE PARENT_PTR kTmpPtrL2
-    .DEFINE DIRECTBLOCK_PTR kTmpBuffer
-    .DEFINE ROOT_PTR (kTmpBuffer+3)
-    .DEFINE DIRECTBLOCK_INDEX (kTmpBuffer+6)
-    .DEFINE DIRECTBLOCK_COUNT (kTmpBuffer+8)
+    .DEFINE DIRECTBLOCK_INDEX (kTmpBuffer+$20)
+    .DEFINE DIRECTBLOCK_COUNT (kTmpBuffer+$22)
     phd
     lda #$0000
     tcd
 ; setup pointers
     rep #$30
-    stz.b NODE_PTR
-    stz.b PARENT_PTR
+    stz.b PTR_NODE
+    stz.b PTR_PARENT
     lda 2+$06,S
-    sta.b NODE_PTR+1
+    sta.b PTR_NODE+1
     lda 2+$04,S
-    sta.b PARENT_PTR+1
+    sta.b PTR_PARENT+1
 ; check nodes are not null
     lda 2+$04,S
     bne +
@@ -959,32 +952,32 @@ _memfs_unlink:
     beq @fail
 ; check that (NODE is FILE) or (NODE is DIR and (NODE.entries[0].blockId != 0 or NODE.nlink > 1))
     ldy #fs_memdev_inode_t.type
-    lda [NODE_PTR],Y
+    lda [PTR_NODE],Y
     cmp #FS_INODE_TYPE_FILE ; NODE is FILE => success
     beq @node_is_good
     cmp #FS_INODE_TYPE_DIR ; not NODE is DIR => fail
     bne @fail
         ldy #fs_memdev_inode_t.nlink
-        lda [NODE_PTR],Y
+        lda [PTR_NODE],Y
         cmp #2
         bcs @node_is_good ; NODE.nlink >= 2 => success
         ldy #fs_memdev_inode_t.dir.entries.1.blockId
-        lda [NODE_PTR],Y
+        lda [PTR_NODE],Y
         bne @fail ; NODE.entries[0].blockId != 0 => fail
 @node_is_good:
 ; decrement link count
     ldy #fs_memdev_inode_t.nlink
-    lda [NODE_PTR],Y
+    lda [PTR_NODE],Y
     beq +
         dec A
     +:
-    sta [NODE_PTR],Y
+    sta [PTR_NODE],Y
 ; remove from parent
     ; go to index of node
     ldy #fs_memdev_inode_t.dir.entries.1
 @loop_search_node:
-        lda [PARENT_PTR],Y
-        cmp.b NODE_PTR+1
+        lda [PTR_PARENT],Y
+        cmp.b PTR_NODE+1
         beq @found_in_node
         tya
         clc
@@ -1003,9 +996,9 @@ _memfs_unlink:
         clc
         adc #16
         tay
-        lda [PARENT_PTR],Y
+        lda [PTR_PARENT],Y
         txy
-        sta [PARENT_PTR],Y
+        sta [PTR_PARENT],Y
         iny
         iny
         jmp @loop_copy_bytes
@@ -1013,46 +1006,46 @@ _memfs_unlink:
 @search_failed:
     ; copy one empty entry
     lda #0
-    sta [PARENT_PTR],Y
+    sta [PTR_PARENT],Y
     ; handle deletion, possibly
     ldy #fs_memdev_inode_t.nlink
-    lda [NODE_PTR],Y
+    lda [PTR_NODE],Y
     bnel @dont_free_node
         lda 2+$08,S
         tax
         sep #$20
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.bank_first,X
-        sta.b ROOT_PTR+2
+        sta.b PTR_ROOT+2
         lda.l $7E0000 + fs_device_instance_t.data + fs_device_instance_mem_data_t.page_first,X
-        sta.b ROOT_PTR+1
-        stz.b ROOT_PTR ; [$03] is now ROOT
+        sta.b PTR_ROOT+1
+        stz.b PTR_ROOT ; [$03] is now ROOT
         rep #$30
         ; NODE->next = ROOT->next
         ldy #fs_memdev_inode_t.inode_next
-        lda [ROOT_PTR],Y
+        lda [PTR_NODE],Y
         ldy #fs_memdev_inode_t.inode_next
-        sta [NODE_PTR],Y
+        sta [PTR_NODE],Y
         ; ROOT->next = NODE
         ldy #fs_memdev_inode_t.inode_next
-        lda.b NODE_PTR+1
-        sta [ROOT_PTR],Y
+        lda.b PTR_NODE+1
+        sta [PTR_ROOT],Y
         ; NODE->type = NONE
         ldy #fs_memdev_inode_t.type
         lda #FS_INODE_TYPE_EMPTY
-        sta [NODE_PTR],Y
+        sta [PTR_NODE],Y
         ; ROOT->num_used_inodes--
         ldy #fs_memdev_inode_t.root.num_used_inodes
-        lda [ROOT_PTR],Y
+        lda [PTR_ROOT],Y
         dec A
-        sta [ROOT_PTR],Y
+        sta [PTR_ROOT],Y
         ; ROOT->num_free_inodes++
         ldy #fs_memdev_inode_t.root.num_free_inodes
-        lda [ROOT_PTR],Y
+        lda [PTR_ROOT],Y
         inc A
-        sta [ROOT_PTR],Y
+        sta [PTR_ROOT],Y
         ; free direct nodes, if necessary
         ldy #fs_memdev_inode_t.size
-        lda [NODE_PTR],Y
+        lda [PTR_NODE],Y
         clc
         adc #256-192-1
         xba
@@ -1065,38 +1058,38 @@ _memfs_unlink:
     @loop_free_directblock:
             ; setup pointer
             ldy.b DIRECTBLOCK_INDEX
-            lda [NODE_PTR],Y
-            stz.b DIRECTBLOCK_PTR
-            sta.b DIRECTBLOCK_PTR+1
+            lda [PTR_NODE],Y
+            stz.b PTR_DIRECT
+            sta.b PTR_DIRECT+1
             ; DIRECT->next = ROOT->next
             ; TODO: could probably speed up by linking each node together, then
             ; linking root to first node, but this is easier for now
             ldy #fs_memdev_inode_t.inode_next
-            lda [ROOT_PTR],Y
+            lda [PTR_ROOT],Y
             ldy #fs_memdev_inode_t.inode_next
-            sta [DIRECTBLOCK_PTR],Y
+            sta [PTR_DIRECT],Y
             ; ROOT->next = DIRECT
             ldy #fs_memdev_inode_t.inode_next
-            lda.b DIRECTBLOCK_PTR+1
-            sta [ROOT_PTR],Y
+            lda.b PTR_DIRECT+1
+            sta [PTR_ROOT],Y
             ; DIRECT->type = NONE
             ldy #fs_memdev_inode_t.type
             lda #FS_INODE_TYPE_EMPTY
-            sta [DIRECTBLOCK_PTR],Y
+            sta [PTR_DIRECT],Y
             ; DIRECT->nlink = 0
             ldy #fs_memdev_inode_t.nlink
             lda #0
-            sta [DIRECTBLOCK_PTR],Y
+            sta [PTR_DIRECT],Y
             ; ROOT->num_used_inodes--
             ldy #fs_memdev_inode_t.root.num_used_inodes
-            lda [ROOT_PTR],Y
+            lda [PTR_ROOT],Y
             dec A
-            sta [ROOT_PTR],Y
+            sta [PTR_ROOT],Y
             ; ROOT->num_free_inodes++
             ldy #fs_memdev_inode_t.root.num_free_inodes
-            lda [ROOT_PTR],Y
+            lda [PTR_ROOT],Y
             inc A
-            sta [ROOT_PTR],Y
+            sta [PTR_ROOT],Y
             ; iterate
             dec.b DIRECTBLOCK_COUNT
             beq @end_free_directblock
@@ -1108,10 +1101,6 @@ _memfs_unlink:
     lda #1
     pld
     rtl
-.UNDEFINE NODE_PTR
-.UNDEFINE PARENT_PTR
-.UNDEFINE DIRECTBLOCK_PTR
-.UNDEFINE ROOT_PTR
 .UNDEFINE DIRECTBLOCK_INDEX
 .UNDEFINE DIRECTBLOCK_COUNT
 

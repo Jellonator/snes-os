@@ -13,7 +13,7 @@ kInitialize__:
     ; Binary mode (decimal mode off), X/Y 16 bit
     rep #$18
     ; set stack for init process
-    ldx #$003F
+    ldx #$007F
     txs
     ; Initialize registers
     jsl kResetRegisters__
@@ -70,9 +70,10 @@ kInitialize2__:
 ; Setup process 1
     lda #1
     sta.w loword(kCurrentPID)
-    sta.w loword(kProcTabDirectPageCount + 1)
     sta.w loword(kQueueTabNext + 1)
     sta.w loword(kQueueTabPrev + 1)
+    lda #4
+    sta.w loword(kProcTabDirectPageCount + 1)
     lda #PROCESS_READY
     sta.w loword(kProcTabStatus + 1)
     stz.w loword(kProcTabDirectPageIndex + 1)

@@ -7,6 +7,15 @@
 ; Called by SNES' IRQ timer.
 ; In charge of process switching.
 kBrk__:
+    sei
+    rep #$20 ; 16b A
+    pha
+; disable interrupts
+    sep #$20 ; 8b A
+    lda #%00000001
+    sta.l NMITIMEN
+    jml kIRQ2__ ; go to FASTROM section
+
 kIRQ__:
     sei
     rep #$20 ; 16b A

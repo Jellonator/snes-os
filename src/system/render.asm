@@ -53,7 +53,7 @@ kVBlank2__:
     ; save context
     .ContextSave_NOA__
     ; change to vblank stack
-    .SetStack $007F
+    .SetStack $00FF
     ; f-blank
     sep #$20 ; 8b A
     lda #%10001111

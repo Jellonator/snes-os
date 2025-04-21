@@ -1,7 +1,7 @@
 .include "base.inc"
 
 .BANK $01 SLOT "ROM"
-.SECTION "shcat" FREE
+.SECTION "shcp" FREE
 
 _err_oom:
     .db "Could not allocate buffer.\n\0"

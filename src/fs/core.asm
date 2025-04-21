@@ -270,25 +270,30 @@ fsSeek:
 ; nbytes: $04,S
 fsRead:
     ; TODO: check handle state for read-access
-    .INDEX 16
-    phx ; [+2, 2] PARAM fh
     sep #$20
-    lda 2+$08,S
-    pha ; [+1, 3] PARAM buffer (bank)
+    .DisableInt__ ; [+1, 1]
     rep #$30
-    lda 3+$06,S
-    pha ; [+2, 5] PARAM buffer
-    lda 5+$04,S
-    pha ; [+2; 7] PARAM nbytes
+    phx ; [+2, 3] PARAM fh
+    sep #$20
+    lda 3+$08,S
+    pha ; [+1, 4] PARAM buffer (bank)
+    rep #$30
+    lda 4+$06,S
+    pha ; [+2, 6] PARAM buffer
+    lda 6+$04,S
+    pha ; [+2; 8] PARAM nbytes
     lda.l $7E0000 + fs_handle_instance_t.device,X
     tax
     lda.l $7E0000 + fs_device_instance_t.template,X
     tax
     .FsCall fs_device_template_t.read
     sta.b $00
-    .POPN 5
+    .POPN 5 ; [-5; 3]
     rep #$30
     plx
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    rep #$30
     lda.b $00
     rtl
 
@@ -298,26 +303,32 @@ fsRead:
 ; nbytes: $04,S
 fsWrite:
     ; TODO: check handle state for write-access
-    rep #$30
-    phx ; [+2, 2] PARAM fh
     sep #$20
-    lda 2+$08,S
-    pha ; [+1, 3] PARAM buffer (bank)
+    .DisableInt__ ; [+1, 1]
     rep #$30
-    lda 3+$06,S
-    pha ; [+2, 5] PARAM buffer
+    phx ; [+2, 3] PARAM fh
+    ; TODO: check handle state for write-access
+    sep #$20
+    lda 3+$08,S
+    pha ; [+1, 4] PARAM buffer (bank)
     rep #$30
-    lda 5+$04,S
-    pha ; [+2, 7] PARAM nbytes
+    lda 4+$06,S
+    pha ; [+2, 6] PARAM buffer
+    rep #$30
+    lda 6+$04,S
+    pha ; [+2, 8] PARAM nbytes
     lda.l $7E0000 + fs_handle_instance_t.device,X
     tax
     lda.l $7E0000 + fs_device_instance_t.template,X
     tax
     .FsCall fs_device_template_t.write
     sta.b $00
-    .POPN 5 ; [-5, 2]
+    .POPN 5 ; [-5, 3]
     rep #$30
     plx ; [-2, 0]
+    sep #$20
+    .RestoreInt__ ; [-1, 2]
+    rep #$30
     lda.b $00
     rtl
 

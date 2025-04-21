@@ -167,6 +167,7 @@
         num_banks db
         num_blocks_total dw
         mode dw
+        _pad ds 6
     ; inode layout
         ; number of used inodes
         num_used_inodes dw
@@ -175,7 +176,7 @@
         ; number of free inodes
         num_free_inodes dw
     ; directory
-        _reserved ds 28
+        _reserved ds 22
         entries INSTANCEOF fs_memdev_direntry_t FSMEM_DIR_MAX_INODE_COUNT
     .ENDU
 .ENDST
