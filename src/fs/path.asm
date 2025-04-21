@@ -21,6 +21,8 @@ pathIsRelative:
     .INDEX 16
     sep #$20
     lda.w $0000,X
+    cmp #0
+    beq +
     cmp #'/'
     beq +
         lda #1

@@ -290,9 +290,6 @@ vSetRenderer:
 
 vClearSpriteData__:
     rep #$30
-    phd
-    lda #0
-    tcd
     phb
     .ChangeDataBank $7E
     .REPT 32/2 INDEX i
@@ -304,7 +301,6 @@ vClearSpriteData__:
         sta.w kSpriteTable.{i+1}.pos_y
     .ENDR
     plb
-    pld
     rtl
 
 vUploadSpriteData__:

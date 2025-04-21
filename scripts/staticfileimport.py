@@ -95,12 +95,15 @@ def format_name_ascii(s):
     else:
         return ret
 
+def format_node_id(n):
+    return "kStaticNodeData{}__".format(n)
+
 def write_direct(node_id):
     global section_id
     node = nodelist[node_id]
     section_id += 1
     out_inc.write(".SECTION \"static data {}\" SLOT \"ROM\" SEMISUPERFREE BANKS 127-0 ALIGN 256\n".format(section_id))
-    out_inc.write(".DSTRUCT staticnode_data_{} INSTANCEOF fs_memdev_direct_data_block VALUES \n".format(node_id))
+    out_inc.write(".DSTRUCT {} INSTANCEOF fs_memdev_direct_data_block VALUES \n".format(format_node_id(node_id)))
     out_inc.write("    data: .db \"{}\"\n".format(format_bytes_ascii(node['data'])))
     # END
     out_inc.write(".ENDST\n")
@@ -111,14 +114,14 @@ def write_dir(node_id):
     node = nodelist[node_id]
     section_id += 1
     out_inc.write(".SECTION \"static data {}\" SLOT \"ROM\" SEMISUPERFREE BANKS 127-0 ALIGN 256\n".format(section_id))
-    out_inc.write(".DSTRUCT staticnode_data_{} INSTANCEOF fs_memdev_inode_t VALUES \n".format(node_id))
+    out_inc.write(".DSTRUCT {} INSTANCEOF fs_memdev_inode_t VALUES \n".format(format_node_id(node_id)))
     out_inc.write("    type .dw FS_INODE_TYPE_DIR\n")
     out_inc.write("    nlink .dw 1\n")
     out_inc.write("    size .dw {}, 0\n".format(len(node['children'])))
     out_inc.write("    inode_next .dw $0000\n")
     # nodes
     for i in range(len(node["children"])):
-        out_inc.write("    dir.entries.{}.blockId .dw inode(staticnode_data_{})\n".format(i+1, node['children'][i]))
+        out_inc.write("    dir.entries.{}.blockId .dw inode({})\n".format(i+1, format_node_id(node['children'][i])))
         out_inc.write("    dir.entries.{}.name .db \"{}\"\n".format(i+1, format_name_ascii(nodelist[node["children"][i]]['name'])))
     if len(node['children']) < MAX_FILES_IN_DIR:
         out_inc.write("    dir.entries.{}.blockId .dw 0\n".format(1+len(node['children'])))
@@ -137,7 +140,7 @@ def write_file(node_id):
     node = nodelist[node_id]
     section_id += 1
     out_inc.write(".SECTION \"static data {}\" SLOT \"ROM\" SEMISUPERFREE BANKS 127-0 ALIGN 256\n".format(section_id))
-    out_inc.write(".DSTRUCT staticnode_data_{} INSTANCEOF fs_memdev_inode_t VALUES \n".format(node_id))
+    out_inc.write(".DSTRUCT {} INSTANCEOF fs_memdev_inode_t VALUES \n".format(format_node_id(node_id)))
     out_inc.write("    type .dw FS_INODE_TYPE_FILE\n")
     out_inc.write("    nlink .dw 1\n")
     out_inc.write("    size .dw {}, 0\n".format(node['size']))
@@ -147,7 +150,7 @@ def write_file(node_id):
     if len(node['direct']) > 0:
         out_inc.write("    file.directBlocks:\n")
         for i in range(len(node['direct'])):
-            out_inc.write("        .dw inode(staticnode_data_{})\n".format(node['direct'][i]))
+            out_inc.write("        .dw inode({})\n".format(format_node_id(node['direct'][i])))
     # END
     out_inc.write(".ENDST\n")
     out_inc.write(".ENDS\n")
@@ -179,7 +182,7 @@ def write_root(node_id):
     out_inc.write("    root.num_total_inodes .dw {}\n".format(0x4000))
     out_inc.write("    root.num_free_inodes  .dw {}\n".format(0x4000-len(nodelist)))
     for i in range(len(node["children"])):
-        out_inc.write("    root.entries.{}.blockId .dw inode(staticnode_data_{})\n".format(i+1, node['children'][i]))
+        out_inc.write("    root.entries.{}.blockId .dw inode({})\n".format(i+1, format_node_id(node['children'][i])))
         out_inc.write("    root.entries.{}.name .db \"{}\"\n".format(i+1, format_name_ascii(nodelist[node["children"][i]]['name'])))
     if len(node['children']) < MAX_FILES_IN_DIR:
         out_inc.write("    root.entries.{}.blockId .dw 0\n".format(1+len(node['children'])))
