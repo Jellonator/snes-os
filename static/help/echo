@@ -1,0 +1,10 @@
+echo [string...] [-o file]
+
+Outputs the provided list
+of strings, separated by
+spaces.
+
+Flags:
+-o file
+  write strings to file
+  `file`.

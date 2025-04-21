@@ -1,0 +1,13 @@
+meminfo
+
+Outputs list of all
+allocated memory blocks.
+
+First column is process ID.
+Second column is start:end,
+indicating their location
+in memory.
+
+Afterwards, the amount of
+memory which is and is not
+in use will be output.

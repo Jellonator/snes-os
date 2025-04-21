@@ -1,0 +1,8 @@
+rm {path}
+
+Delete the file or
+directory at `path`.
+Directories may not be
+removed if they contain at
+least one file or
+subdirectory.

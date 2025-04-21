@@ -1,0 +1,4 @@
+cp {source} {dest}
+
+Copy contents of file
+`source` to new file `dest`.

@@ -1,0 +1,4 @@
+cat {file}
+
+Outputs the contents of
+the file `file`.

@@ -3,6 +3,7 @@
 bin/
 obj/
 include/assets.inc
+include/staticdata.inc
 include/*.bin
 include/sprites/
 include/palettes/

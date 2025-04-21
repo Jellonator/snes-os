@@ -36,7 +36,7 @@ SOURCES  := fs/core.asm\
 OBJECTS  := $(SOURCES:%.asm=$(OBJDIR)/%.obj)
 PALETTES := $(wildcard assets/palettes/*.hex)
 SPRITES  := $(wildcard assets/sprites/*.raw)
-INCLUDES := $(wildcard ./include/*.inc) include/assets.inc
+INCLUDES := $(wildcard ./include/*.inc) include/assets.inc include/staticdata.inc
 
 Test.smc: Test.link $(OBJECTS)
 	mkdir -p $(BINDIR)
@@ -47,6 +47,10 @@ include/assets.inc: $(PALETTES) $(SPRITES) assets/palettes.json assets/sprites.j
 	mkdir -p include/palettes/
 	mkdir -p include/sprites/
 	$(PY) scripts/assetimport.py
+
+include/staticdata.inc: $(shell ls static/**/*)
+	echo MAKING STATIC INC
+	$(PY) scripts/staticfileimport.py
 
 $(OBJDIR)/%.obj: $(SRCDIR)/%.asm $(INCLUDES)
 	mkdir -p $(dir $@)

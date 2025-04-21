@@ -77,7 +77,7 @@ Create a directory at `path`.
 
 `ps`
 
-This command lists all active processes in a table. The `PI` table is the process ID, The `S` column is the process state, and the `NAME` column is the process name.
+This command lists all active processes in a table. The `PI` column is the process ID, The `S` column is the process state, and the `NAME` column is the process name.
 
 Process states:
 

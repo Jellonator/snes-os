@@ -1,0 +1,4 @@
+mkdir {path}
+
+Create a new directory at
+`path`.

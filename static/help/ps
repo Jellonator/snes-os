@@ -1,0 +1,16 @@
+ps
+
+Outputs list of all active
+processes.
+
+First column is process ID.
+
+Second column is is process
+state.
+'R' - active process
+'S' - suspended process
+'I' - process will resume
+on interrupt (frame has
+finished rendering).
+'W' - process is waiting
+on a semaphore.
