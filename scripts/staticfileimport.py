@@ -34,7 +34,7 @@ def read_file(path, name):
             'indirect': []
         }
         nodelist.append(node)
-        num_required_direct_nodes = max(0, (len(data) - BASE_FILE_SIZE) // INDIRECT_BLOCK_FILE_SIZE)
+        num_required_direct_nodes = max(0, (len(data) + INDIRECT_BLOCK_FILE_SIZE - BASE_FILE_SIZE - 1) // INDIRECT_BLOCK_FILE_SIZE)
         # TODO: support indirect nodes
         for i in range(num_required_direct_nodes):
             base = BASE_FILE_SIZE + i * INDIRECT_BLOCK_FILE_SIZE
@@ -147,7 +147,7 @@ def write_file(node_id):
     if len(node['direct']) > 0:
         out_inc.write("    file.directBlocks:\n")
         for i in range(len(node['direct'])):
-            out_inc.write("        .dw staticnode_data_{}\n".format(node['direct'][i]))
+            out_inc.write("        .dw inode(staticnode_data_{})\n".format(node['direct'][i]))
     # END
     out_inc.write(".ENDST\n")
     out_inc.write(".ENDS\n")

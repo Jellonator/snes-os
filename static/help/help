@@ -1,0 +1,9 @@
+help [command]
+
+Outputs a list of
+available commands.
+
+if `command` is provided,
+this will output help text
+specific to that command
+instead.

@@ -1044,7 +1044,10 @@ _snow_logo:
     .db "| ---/ |  \/ /| |\ \/ \/OS |"
     .db "|                          |"
     .db "\--------------------------/"
-    .db "type 'help' for command list\0"
+    .db "type 'help' for command list"
+    .db "or, type 'help <command>'\n"
+    .db "for information about that\n"
+    .db "command.\n\0"
 
 os_shell:
     jsr _shell_init
@@ -1061,10 +1064,32 @@ os_shell:
 
 _help_txt:
     .db "Commands:\n  \0"
-_help_sep:
+_help_break:
     .db "\n  \0"
+_help_err_too_many_args:
+    .db "Expected at most one\nparameter.\n\0"
 _sh_help_name: .db "help\0"
+    ; $01,s: int argc
+    ; $03,s: char **argv
 _sh_help:
+    ; check if there are arguments
+    rep #$30
+    lda $01,S
+    cmp #3
+    bcc +
+        phb
+        phk
+        plb
+        ldy #_help_err_too_many_args
+        jsl kPutString
+        plb
+        jsl procExit
+    +:
+    cmp #2
+    bcc +
+        jmp _sh_help_command
+    +:
+    ; default behavior:
     .ChangeDataBank bankbyte(_help_txt)
     rep #$30
     ldy #loword(_help_txt)
@@ -1081,9 +1106,9 @@ _sh_help:
     lda.l ShellCommandList+command_t.plName,X
     tay
     jsl kPutString
-    .ChangeDataBank bankbyte(_help_sep)
+    .ChangeDataBank bankbyte(_help_break)
     rep #$20
-    ldy #loword(_help_sep)
+    ldy #loword(_help_break)
     jsl kPutString
     rep #$30
     lda.b $06
@@ -1092,7 +1117,107 @@ _sh_help:
     sta.b $06
     cmp #_sizeof_command_t * NUM_COMMANDS
     bcc @loop
-
+    jsl procExit
+_help_base_path:
+    .db "/static/help/\0"
+_help_err_no_file:
+    .db "No help exists for command.\n\0"
+    ; $01,s: int argc
+    ; $03,s: char **argv
+_sh_help_command:
+    ; allocate buffer
+    pea 64
+    jsl memAlloc
+    rep #$30
+    pla
+    stx.b $08
+    sep #$20
+    lda #$7F
+    sta.b $0A
+    sta.b $0E
+    ; write base path
+    ldy #0
+    ldx #0
+    @loop_copy_base:
+        lda.l _help_base_path,X
+        beq @end_copy_base
+        sta [$08],Y
+        inx
+        iny
+        jmp @loop_copy_base
+@end_copy_base:
+    ; write command name
+    rep #$30
+    lda $03,S
+    inc A
+    inc A
+    tax
+    lda.w $0000,X
+    sta.b $0C
+    ldx #FS_MAX_FILENAME_LEN
+    sep #$20
+    @loop_copy_name:
+        lda [$0C]
+        beq @end_copy_name
+        sta [$08],Y
+        iny
+        inc.b $0C
+        dex
+        bmi @no_such_help
+        jmp @loop_copy_name
+@end_copy_name:
+    lda #0
+    sta [$08],Y
+    ; open file
+    rep #$30
+    ldx.b $08
+    jsl fsOpen
+    rep #$30
+    cpx #0
+    bne +
+@no_such_help:
+        phb
+        phk
+        plb
+        ldy #_help_err_no_file
+        jsl kPutString
+        plb
+        jsl procExit
+    +:
+    stx.b $10
+    ; loop read and print
+    sep #$20
+    lda #$7F
+    pha
+    rep #$20
+    lda.b $08
+    pha
+    pea 60
+    @loop:
+        rep #$30
+        lda.b $08
+        sta $03,S
+        ldx.b $10
+        jsl fsRead
+        rep #$30
+        cmp #0
+        beq @end_loop
+        ; got text
+        ; put null terminator
+        tay
+        lda #0
+        sep #$20
+        sta [$08],Y
+        ldy.b $08
+        jsl kPutString
+        jmp @loop
+    @end_loop:
+    .POPN 5
+    ; close file
+    rep #$30
+    ldx.b $10
+    jsl fsClose
+@end:
     jsl procExit
 
 _sh_kill_name: .db "kill\0"
