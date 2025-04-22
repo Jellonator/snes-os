@@ -28,7 +28,8 @@ shCp:
     cmp #3
     beq +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_no_file_provided
         jsl kPutString
         plb
@@ -42,7 +43,8 @@ shCp:
     cpx #0
     bne +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_oom
         jsl kPutString
         plb
@@ -61,7 +63,8 @@ shCp:
     cpx #0
     bne +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_could_not_open
         jsl kPutString
         plb
@@ -83,7 +86,8 @@ shCp:
         jsl fsClose
         rep #$30
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_could_not_create
         jsl kPutString
         plb

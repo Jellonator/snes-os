@@ -18,7 +18,8 @@ shRm:
     cmp #2
     beq +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_no_file_provided
         jsl kPutString
         plb
@@ -36,7 +37,8 @@ shRm:
     cmp #0
     bne +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_could_not_remove
         jsl kPutString
         plb

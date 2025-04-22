@@ -157,7 +157,8 @@ shEcho:
 
 _write_failed:
     ; print error
-    .ChangeDataBank $01
+    phk
+    plb
     ldy #_err_write_failed
     jsl kPutString
     plb
@@ -180,7 +181,8 @@ _parse_arg:
     beq @arg_output
     rep #$30
     ; error; exit
-    .ChangeDataBank $01
+    phk
+    plb
     ldy #_err_invalid_argument
     jsl kPutString
     plb
@@ -197,7 +199,8 @@ _parse_output:
     dec.b ARGS_TO_PARSE
     bne +
         ; error if no more args to parse
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_no_file_provided
         jsl kPutString
         plb
@@ -210,7 +213,8 @@ _parse_output:
     lda.b FILE_HANDLE
     beq +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_too_many_file
         jsl kPutString
         plb
@@ -223,7 +227,8 @@ _parse_output:
     cpx #0
     bne +
         phb
-        .ChangeDataBank $01
+        phk
+        plb
         ldy #_err_could_not_open
         jsl kPutString
         plb
