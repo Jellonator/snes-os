@@ -13,6 +13,15 @@
 .DEFINE JOY_RIGHT $0100
 .DEFINE JOY_ID $000F
 
+; Mouse buttons
+.DEFINE MOUSE_LEFT $0040
+.DEFINE MOUSE_RIGHT $0080
+.DEFINE MOUSE_SENSITIVITY $0030
+
+.DEFINE MOUSE_SENSITIVITY_LOW $0000
+.DEFINE MOUSE_SENSITIVITY_MED $0010
+.DEFINE MOUSE_SENSITIVITY_HIGH $0020
+
 ; Memory layout info
 .DEFINE KPROC_NUM 64
 .DEFINE DP_BLOCK_COUNT 256
@@ -52,3 +61,13 @@
 .ENUMID KQID_NMILIST ; List used for processing waiting for NMI
 .ENUMID KQID_FIRST ; First freely allocatable QID
 .DEFINE KQID_READYLIST 1 ; List used for ready processes, also the init process
+
+; define tile with character `chr` and palette `pal` [1-7]
+.FUNCTION deft(chr, pal) (chr | (pal << 10))
+
+; TILE FLAGS
+
+.DEFINE T_HIGHP 0x2000  ; high priority
+.DEFINE T_FLIPH 0x4000  ; flip horizontal
+.DEFINE T_FLIPV 0x8000  ; flip vertical
+.DEFINE T_FLIPVH 0xC000 ; flip horizontal and vertical

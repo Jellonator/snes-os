@@ -13,5 +13,15 @@
         "name": "ShellUISprites__",
         "src": "assets/sprites/shell_sprites.raw",
         "depth": 16
+    },
+    {
+        "name": "DesktopUI__",
+        "src": "assets/sprites/desktop_ui.raw",
+        "depth": 4
+    },
+    {
+        "name": "DesktopSprites__",
+        "src": "assets/sprites/desktop_sprites.raw",
+        "depth": 16
     }
 ]

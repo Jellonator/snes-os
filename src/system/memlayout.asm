@@ -50,6 +50,13 @@
     kJoy1Raw dw
     kJoy1Press dw
     kJoy1Held dw
+    kMouse1X db
+    kMouse1Y db
+    kMouse1Raw dw
+    kMouse1Press dw
+    kMouse1Held dw
+    kInput1Device dw
+    kMouseDoingInitialize dw
 ; filesystem
     ; list of available device templates
     kfsDeviceTemplateTable dsl FS_DEVICE_TYPE_MAX_COUNT

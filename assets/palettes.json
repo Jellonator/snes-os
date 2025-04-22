@@ -1,2 +1,18 @@
 [
+    {
+        "name": "desktop_base",
+        "src": "assets/palettes/desktop_base.hex"
+    },
+    {
+        "name": "desktop_close",
+        "src": "assets/palettes/desktop_close.hex"
+    },
+    {
+        "name": "desktop_sprite_mouse",
+        "src": "assets/palettes/desktop_sprite_mouse.hex"
+    },
+    {
+        "name": "desktop_blackout",
+        "src": "assets/palettes/desktop_blackout.hex"
+    }
 ]

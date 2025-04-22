@@ -257,25 +257,102 @@
     @@@@@\.\@:
 .ENDM
 
-; Calculate the absolute value of A
+; Calculate the absolute value of A, in 16b mode
 ; ONLY use after an instruction that loads the value into A (checks N flag)
 ; e.g.: ADC, SBC, DEC, INC, AND, ORA, EOR, ASL, LSR, ROL, ROR, LDA, PLA, TXA, and TYA
 ; some other instructions also set the N flag but may either refer to a
 ; different register (e.g. LDX), or don't reflect the current value of A (e.g. CMP)
 .MACRO .ABS_A16_POSTLOAD
     bpl @@@@@\.\@
-    eor #FFFF
-    inc
+    eor.w #$FFFF
+    inc A
 @@@@@\.\@:
 .ENDM
 
-; Calculate the absolute value of A
+; Negate 16b A register
+.MACRO .NEG_A16
+    eor.w #$FFFF
+    inc A
+.ENDM
+
+; Calculate the absolute value of A, in 8b mode
 ; ONLY use after an instruction that loads the value into A (checks N flag)
 .MACRO .ABS_A8_POSTLOAD
     bpl @@@@@\.\@
-    eor #FF
-    inc
+    eor.b #$FF
+    inc A
 @@@@@\.\@:
+.ENDM
+
+; Negate 8b register
+.MACRO .NEG_A8
+    eor.w #$FF
+    inc A
+.ENDM
+
+; TRUE if x is a power of 2
+.FUNCTION IS_POW2(x) !(x & (x - 1))
+
+; returns log₂x
+.FUNCTION log2(x) log(x) / log(2.0)
+
+; Cheap method of (A % num), in 8b mode
+; only works if 'num' is a power of 2
+.MACRO .CheapModA8 ARGS num
+    .IF num == 1
+    .ELIF num > 0 && num <= (2^7) && IS_POW2(num)
+        and.b #(num - 1)
+    .ELSE
+        .FAIL "CheapModA8: invalid num"
+    .ENDIF
+.ENDM
+
+; Cheap modulo (A % num), in 16b mode
+; only works if 'num' is a power of 2
+.MACRO .CheapModA16 ARGS num
+    .IF num == 1
+    .ELIF num > 1 && num <= (2^15) && IS_POW2(num)
+        and.w #(num - 1)
+    .ELSE
+        .FAIL "CheapModA16: invalid num"
+    .ENDIF
+.ENDM
+
+; shift accumulator left by 'num' (A << num)
+.MACRO .ShiftLeft ARGS num
+    .REPT num
+        asl
+    .ENDR
+.ENDM
+
+; shift accumulator right by 'num' (A >> num)
+.MACRO .ShiftRight ARGS num
+    .REPT num
+        lsr
+    .ENDR
+.ENDM
+
+; Cheap multiplication (A * num)
+; only works if 'num' is a power of 2
+.MACRO .MultiplyStatic ARGS num
+    .IF num == 0
+    .ELIF IS_POW2(num)
+        .ShiftLeft round(log2(num))
+    .ELSE
+        .FAIL "MultiplyStatic: invalid num"
+    .ENDIF
+.ENDM
+
+; Cheap division (A / num)
+; only works if 'num' is a power of 2
+; Rounds down
+.MACRO .DivideStatic ARGS num
+    .IF num == 0
+    .ELIF IS_POW2(num)
+        .ShiftRight round(log2(num))
+    .ELSE
+        .FAIL "DivideStatic: invalid num"
+    .ENDIF
 .ENDM
 
 .MACRO .ChangeDataBank ARGS bank

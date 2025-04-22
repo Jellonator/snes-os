@@ -82,6 +82,9 @@
 .define MULTS_RESULT_HIGH $2136
 .define MULTS_A $211B
 .define MULTS_B $211C
+; JOY serial read registers
+.DEFINE JOYSER0 $4016
+.DEFINE JOYSER1 $4017
 ; unsigned division registers
 .define DIVU_DIVIDEND $4204
 .define DIVU_DIVISOR $4206

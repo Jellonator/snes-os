@@ -66,6 +66,7 @@ ShellCommandList:
     ; .DefCommand _sh_clear
     .DefCommand shCat
     .DefCommand shCp
+    .DefCommand os_desktop
     .DefCommand shEcho
     .DefCommand _sh_help
     ; .DefCommand _sh_kill
@@ -859,6 +860,22 @@ _shell_render:
 _shell_update:
     sep #$20
     .DisableInt__
+    ; check if we have renderer
+    lda.l kRendererProcess
+    beq @fix_renderer
+    cmp.l kCurrentPID
+    beq @update
+        ; we do not have renderer
+        .RestoreInt__
+        ; wait for NMI and reschedule
+        jsl procWaitNMI
+        rts
+    @fix_renderer:
+        ; renderer is null, re-initialize
+        rep #$20
+        pla
+        jmp os_shell
+@update:
     ; actual update code
     jsr _shell_push_unselect_pos
     rep #$20

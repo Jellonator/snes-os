@@ -47,6 +47,10 @@ kRendererInit__:
     sep #$20
     lda #$7E
     sta.l kRendererDB
+    rep #$30
+    lda #0
+    sta.l kInput1Device
+    sta.l kMouseDoingInitialize
     rtl
 
 kVBlank2__:
@@ -103,7 +107,20 @@ kVBlank2__:
 ;         sta.w loword(kQueueTabPrev) + KQID_NMILIST
 ; @skiplist:
     jsr kReadInput__
+    ; check need initialize device
+    rep #$30
+    lda.l JOY1INPUT
+    and #JOY_ID
+    cmp.l kInput1Device
+    beq +
+        ; maybe initialize device
+        sta.l kInput1Device
+        cmp #$0001
+        bne +
+        jsr _initialize_mouse
+    +:
     ; Check if IRQ is disabled
+    sep #$20
     lda.l kNMITIMEN
     bit #$30
     bne +
@@ -128,15 +145,43 @@ kVBlank2__:
     ; switch process
     jml kIRQ2__@entrypoint
 
+_clear_controller:
+    rep #$30
+    lda #0
+    sta.l kJoy1Raw
+    sta.l kJoy1Held
+    sta.l kJoy1Press
+    rts
+
+_clear_mouse:
+    rep #$30
+    lda #0
+    sta.l kMouse1X
+    sta.l kMouse1Y
+    sta.l kMouse1Raw
+    sta.l kMouse1Press
+    sta.l kMouse1Held
+    rts
+
 kReadInput__:
     ; loop until controller allows itself to be read
-    rep #$20 ; 8 bit A
+    rep #$30 ; 8 bit A
 @read_input_loop:
     lda.l HVBJOY
     and #$01
     bne @read_input_loop
+; check signature
+    lda.l JOY1INPUT
+    and #JOY_ID
+    cmp #$0000
+    beq _readinput_controller
+    cmp #$0001
+    beq _readinput_mouse
+    ; clear inputs
+    jsr _clear_controller
+    jmp _clear_mouse ; tail call optimization
 
-    ; Read input
+_readinput_controller:
     rep #$30 ; 16 bit AXY
     lda.l kJoy1Raw
     tax
@@ -149,9 +194,74 @@ kReadInput__:
     txa
     and.l kJoy1Raw
     sta.l kJoy1Held
-    ; Not worried about controller validity for now
+    ; clear mouse inputs (tail-call optimization)
+    jmp _clear_mouse
 
-    sep #$30 ; 8 bit AXY
+_readinput_mouse:
+    ; update mouse buttons
+    rep #$30 ; 16 bit AXY
+    lda.l kMouse1Raw
+    tax
+    lda.l JOY1INPUT
+    sta.l kMouse1Raw
+    txa
+    eor.l kMouse1Raw
+    and.l kMouse1Raw
+    sta.l kJoy1Press
+    txa
+    and.l kMouse1Raw
+    sta.l kMouse1Held
+    ; read mouse offsets
+    stz.b $00
+    sep #$20
+    ldy #16
+@loop:
+        lda.l JOYSER0
+        lsr
+        rol.b $00
+        rol.b $01
+        nop
+        nop
+        nop
+        nop
+        dey
+        bne @loop
+    lda.b $00
+    sta.l kMouse1X
+    lda.b $01
+    sta.l kMouse1Y
+    ; If initializing, update sensitivity until is is low
+    rep #$30
+    lda.l kMouseDoingInitialize
+    beq @no_init
+        cmp #1
+        beq @cant_stop_init
+            lda.l kMouse1Press
+            and #MOUSE_SENSITIVITY
+            cmp #MOUSE_SENSITIVITY_LOW
+            bne @sensitivity_not_low
+                lda #0
+                sta.l kMouseDoingInitialize
+                jmp @no_init
+            @sensitivity_not_low:
+        @cant_stop_init:
+        lda.l kMouseDoingInitialize
+        inc A
+        sta.l kMouseDoingInitialize
+        sep #$20
+        lda #1
+        sta.l JOYSER0
+        lda.l JOYSER0
+        lda #0
+        sta.l JOYSER0
+@no_init:
+    ; clear controller inputs (tail-call optimization)
+    jmp _clear_controller
+
+_initialize_mouse:
+    rep #$30
+    lda #1
+    sta.l kMouseDoingInitialize
     rts
 
 ; Copy palette to CGRAM

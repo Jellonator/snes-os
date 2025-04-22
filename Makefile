@@ -8,7 +8,8 @@ AFLAGS   := -I include
 ALDFLAGS := -S -v
 PY       := python3
 
-SOURCES  := fs/core.asm\
+SOURCES  := desktop/desktop.asm\
+			fs/core.asm\
 			fs/data.asm\
 			fs/mem.asm\
 			fs/path.asm\
