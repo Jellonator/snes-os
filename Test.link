@@ -1,5 +1,6 @@
 [objects]
 obj/desktop/desktop.obj
+obj/desktop/window.obj
 obj/fs/core.obj
 obj/fs/data.obj
 obj/fs/mem.obj

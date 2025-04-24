@@ -5,3 +5,4 @@
 .include "registers.inc"
 .include "fs.inc"
 .include "ramlayout.inc"
+.include "desktop.inc"

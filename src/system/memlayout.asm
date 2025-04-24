@@ -18,7 +18,7 @@
     kTmpBuffer ds 64
 .ENDS
 
-.RAMSECTION "7E" BANK $7E SLOT "ExtraMemory" ORGA $2000 FORCE
+.RAMSECTION "7E" BANK $7E SLOT "ExtraMemory" ORGA $2000 ALIGN 256 FORCE
     kDirectPageMask ds (DP_BLOCK_COUNT / 8)
     kCurrentPID db ; active process's PID
     kNMITIMEN db ; stores current value of NMITEN (read-only) hardware register
@@ -39,9 +39,11 @@
     kTermOffY dw ; Y-offset of terminal, used for scrolling
     kTermBufferCount dw ; number of characters to be printed
     kTermBufferLoop db ; if non-zero: write bytes from kTermBufferCount to
+    .ALIGN $0100
     kSpriteTable INSTANCEOF object_t 128
     kSpriteTableHigh dsb 32
 ; buffer size, then from 0 to kTermBufferCount
+    .ALIGN $0100
     kTermBuffer ds KTERM_MAX_BUFFER_SIZE ; text to be added
     kTempBuffer ds 256 ; generic temporary buffer
 ; semaphore info
@@ -57,6 +59,37 @@
     kMouse1Held dw
     kInput1Device dw
     kMouseDoingInitialize dw
+; Window info
+    ; Owner of each desktop tile (WINDOW ID)
+    kWindowTileTabOwner ds 32*32
+    ; Whether each tile is dirty
+    kWindowTileTabDirty ds 32*32
+    ; List of dirty tiles
+    kWindowDirtyTileList dsw 32*32
+    kWindowNumDirtyTiles dw
+    ; Owner of each window (PID)
+    kWindowTabProcess ds MAX_WINDOW_COUNT+1
+    ; Position of each window
+    kWindowNumWindows dw
+    kWindowTabPosX ds MAX_WINDOW_COUNT+1
+    kWindowTabPosY ds MAX_WINDOW_COUNT+1
+    kWindowTabWidth ds MAX_WINDOW_COUNT+1
+    kWindowTabHeight ds MAX_WINDOW_COUNT+1
+    ; Window render function addresses
+    kWindowTabRenderFuncBank ds MAX_WINDOW_COUNT+1
+    kWindowTabRenderFuncPage ds MAX_WINDOW_COUNT+1
+    kWindowTabRenderFuncLow ds MAX_WINDOW_COUNT+1
+    ; Draw Buffer (character data to be copied to VRAM)
+    .ALIGN $0100
+    kWindowDrawBuffer ds WINDOW_DRAW_BUFFER_TOTAL_SIZE
+    kWindowDrawBufferSize dw
+    kWindowDrawBufferTargetAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
+    kWindowDrawBufferSourceAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
+    ; Tile Buffer (tile data to be copied to VRAM)
+    kWindowTileBufferSize dw
+    kWindowTileBuffer INSTANCEOF window_tile_buffer_t (32*32)
+    ; Window order (front -> back)
+    kWindowOrder ds MAX_WINDOW_COUNT+1
 ; filesystem
     ; list of available device templates
     kfsDeviceTemplateTable dsl FS_DEVICE_TYPE_MAX_COUNT
