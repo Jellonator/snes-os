@@ -15,19 +15,19 @@ os_desktop:
 
 _default_bg2_tiles:
 .REPT 32 INDEX iy
-    .IF iy == 24
+    .IF iy == DESKTOP_TILE_MAX_Y - 1
         .dsw 3, deft($20, 2)
         .dw deft($0A, 0), deft($0C, 0)
         .dsw 24, deft($0E, 0)
         .dsw 3, deft($20, 2)
-    .ELIF iy == 25
+    .ELIF iy == DESKTOP_TILE_MAX_Y
         .dsw 3, deft($20, 2)
         .dw deft($2A, 0), deft($2C, 0)
         .dsw 24, deft($2E, 0)
         .dsw 3, deft($20, 2)
     .ELSE
         .REPT 32 INDEX ix
-            .IF ix < 3 || ix >= 29 || iy < 2 || iy >= 26
+            .IF ix < DESKTOP_TILE_MIN_X || ix > DESKTOP_TILE_MAX_X || iy < DESKTOP_TILE_MIN_Y || iy > DESKTOP_TILE_MAX_Y
                 .dw deft($20, 2)
             .ELSE
                 .dw deft($00, 2)
@@ -36,16 +36,51 @@ _default_bg2_tiles:
     .ENDIF
 .ENDR
 
+_hdma_BG12NBA_table:
+    .db (8+WINDOW_CONTENT_MINIMUM_Y)*8
+    .db ((DESKTOP_BG1_CHAR_BASE_ADDR + $0000) >> 12) | (DESKTOP_BG2_CHAR_BASE_ADDR >> 8)
+    .db 64
+    .db ((DESKTOP_BG1_CHAR_BASE_ADDR + $3000) >> 12) | (DESKTOP_BG2_CHAR_BASE_ADDR >> 8)
+    .db 64
+    .db ((DESKTOP_BG1_CHAR_BASE_ADDR + $6000) >> 12) | (DESKTOP_BG2_CHAR_BASE_ADDR >> 8)
+    .db $00
+
+; NOTE: INDEX loops at $300. We can only index up to $3FF, which is not
+; sufficient to fill the entire screen of tiles. So instead, we loop at a set
+; point, and use HDMA to swap BG12NBA
+.DEFINE INDEX $0300
 _default_bg1_tiles:
 .REPT 32 INDEX iy
+    ; shift tile IDs up at key Y locations
+    .IF ((iy+8-WINDOW_CONTENT_MINIMUM_Y)#8) == 0
+        .IF (INDEX#$10) == $0E
+            .REDEFINE INDEX (INDEX - $0300)
+        .ELSE
+            .REDEFINE INDEX (INDEX - $0300)
+        .ENDIF
+    .ENDIF
     .REPT 32 INDEX ix
-        .IF ix < 4 || ix >= 24 || iy < 3 || iy >= 23
+        .IF ix < WINDOW_CONTENT_MINIMUM_X || ix > WINDOW_CONTENT_MAXIMUM_X || iy < WINDOW_CONTENT_MINIMUM_Y || iy > WINDOW_CONTENT_MAXIMUM_Y
             .dw 0
         .ELSE
-            .dw deft(ix*2 + iy*2*24, 0)
+            ; skip 'null' tiles (key tiles we keep blank, at the start of each $3000 word block)
+            ; we keep these tiles null as we can not use windowing– the main
+            ; sub screens must both be visible at all screen locations for
+            ; hi-res to function. So, we keep a couple empty tiles to place
+            ; at the edges of the screen.
+            .IF (INDEX #$0300) == 0
+                .REDEFINE INDEX (INDEX + $02)
+            .ENDIF
+            .dw deft(INDEX, 1)
+            .IF (INDEX#$10) == $0E
+                .REDEFINE INDEX (INDEX + $12)
+            .ELSE
+                .REDEFINE INDEX (INDEX + $02)
+            .ENDIF
         .ENDIF
     .ENDR
 .ENDR
+.UNDEFINE INDEX
 
 .ENUM $10
     bMouseXLow db
@@ -83,7 +118,7 @@ _desktop_init:
 ; set bgmode and window values
     lda #%00010011
     sta.l SCRNDESTM
-    lda #%00010010
+    lda #%00010011
     sta.l SCRNDESTS
     lda #%00110000 | 5
     sta.l BGMODE
@@ -120,6 +155,10 @@ _desktop_init:
     .POPN 4
     pea $8000 | bankbyte(palettes@desktop_sprite_mouse)
     pea loword(palettes@desktop_sprite_mouse)
+    jsl vCopyPalette16
+    .POPN 4
+    pea $1000 | bankbyte(palettes@grayscale)
+    pea loword(palettes@grayscale)
     jsl vCopyPalette16
     .POPN 4
 ; upload default tile data
@@ -169,37 +208,52 @@ _desktop_init:
 .DSTRUCT _defaultwindow INSTANCEOF desktop_window_create_params_t VALUES
     width .db 12
     height .db 12
-    pos_x .db 10
-    pos_y .db 8
+    pos_x .db 0
+    pos_y .db 0
     renderTile .dl _tilerender_null
 .ENDST
 
 .DSTRUCT _defaultwindow2 INSTANCEOF desktop_window_create_params_t VALUES
     width .db 8
     height .db 8
-    pos_x .db 16
-    pos_y .db 10
+    pos_x .db 30
+    pos_y .db 30
     renderTile .dl _tilerender_null
 .ENDST
 
+; renderTile([x16]WID window, [By16]void* buffer, [s8]int x, [s8] int y)
+; buffer[  0.. 32] is first tile,
+; buffer[ 32.. 64] is second tile
+; buffer[ 64.. 96] is third tile
+; buffer[ 96..128] is fourth tile.
+; Each tile has four bitplanes: 0101010101010101,2323232323232323
 _tilerender_null:
+    .ACCU 16
+    .INDEX 16
+    ; set whole tile to white
+    lda #$FFFF
+    ldx #128/2
+    @loop:
+        sta.w $0000,Y
+        iny
+        iny
+        dex
+        bne @loop
     rtl
 
 _desktop_render:
-    ; upload one singular sprite (mouse cursor)
-    ; rep #$20
-    ; lda #0
-    ; sta.l OAMADDR
-    ; sep #$20
-    ; .REPT 4 INDEX i
-    ;     lda.l kSpriteTable+i
-    ;     sta.l OAMDATA
-    ; .ENDR
-    ; rep #$20
-    ; lda #512
-    ; sta.l OAMADDR
-    ; lda.l kSpriteTableHigh
-    ; sta.l OAMDATA
+    ; set up HDMA
+    rep #$20
+    lda #%00000000 + ($0100*lobyte(BG12NBA))
+    sta.l DMA1_CTL
+    lda #loword(_hdma_BG12NBA_table)
+    sta.l DMA1_SRCL
+    sep #$20
+    lda #bankbyte(_hdma_BG12NBA_table)
+    sta.l DMA1_SRCH
+    lda #$02
+    sta.l HDMAEN
+    ; upload data
     jsl vUploadSpriteData__
     jsl windowRender__
     rtl

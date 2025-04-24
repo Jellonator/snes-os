@@ -84,7 +84,7 @@
     kWindowDrawBuffer ds WINDOW_DRAW_BUFFER_TOTAL_SIZE
     kWindowDrawBufferSize dw
     kWindowDrawBufferTargetAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
-    kWindowDrawBufferSourceAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
+    ; kWindowDrawBufferSourceAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
     ; Tile Buffer (tile data to be copied to VRAM)
     kWindowTileBufferSize dw
     kWindowTileBuffer INSTANCEOF window_tile_buffer_t (32*32)

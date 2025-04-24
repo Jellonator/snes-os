@@ -3,16 +3,28 @@
 .BANK $02 SLOT "ROM"
 .SECTION "Windowing" FREE
 
+; this section is synonymous with `desktop.asm::_default_bg1_tiles`.
+; the main difference is that we do not loop addresses.
+.DEFINE INDEX 0
 _target_address_for_tile:
 .REPT 32 INDEX iy
     .REPT 32 INDEX ix
-        .IF ix < 4 || ix >= 24 || iy < 3 || iy >= 23
+        .IF ix < WINDOW_CONTENT_MINIMUM_X || ix > WINDOW_CONTENT_MAXIMUM_X || iy < WINDOW_CONTENT_MINIMUM_Y || iy > WINDOW_CONTENT_MAXIMUM_Y
             .dw 0
         .ELSE
-            .dw (ix*2 + iy*2*24) * 16
+            .IF (INDEX #$0300) == 0
+                .REDEFINE INDEX (INDEX + $02)
+            .ENDIF
+            .dw INDEX * $10 + DESKTOP_BG1_CHAR_BASE_ADDR
+            .IF (INDEX#$10) == $0E
+                .REDEFINE INDEX (INDEX + $12)
+            .ELSE
+                .REDEFINE INDEX (INDEX + $02)
+            .ENDIF
         .ENDIF
     .ENDR
 .ENDR
+.UNDEFINE INDEX
 
 windowInit__:
     phb
@@ -110,32 +122,32 @@ windowCreate:
 ; Determine window location
     ldy #desktop_window_create_params_t.width
     lda [PARAMS],Y
-    .AMAXU P_IMM WINDOW_MINIMUM_WIDTH
-    .AMINU P_IMM WINDOW_MAXIMUM_WIDTH
+    .AMAXU P_IMM WINDOW_BORDER_MINIMUM_WIDTH
+    .AMINU P_IMM WINDOW_BORDER_WIDTH_TILES
     sta.l kWindowTabWidth,X
-    lda #WINDOW_MAXIMUM_X
+    lda #WINDOW_BORDER_MAXIMUM_X
     sec
     sbc.l kWindowTabWidth,X
     inc A
     sta.b MAX_X
     ldy #desktop_window_create_params_t.height
     lda [PARAMS],Y
-    .AMAXU P_IMM WINDOW_MINIMUM_HEIGHT
-    .AMINU P_IMM WINDOW_MAXIMUM_HEIGHT
+    .AMAXU P_IMM WINDOW_BORDER_MINIMUM_HEIGHT
+    .AMINU P_IMM WINDOW_CONTENT_HEIGHT_TILES
     sta.l kWindowTabHeight,X
-    lda #WINDOW_MAXIMUM_Y
+    lda #WINDOW_BORDER_MAXIMUM_Y
     sec
     sbc.l kWindowTabHeight,X
     inc A
     sta.b MAX_Y
     ldy #desktop_window_create_params_t.pos_x
     lda [PARAMS],Y
-    .AMAXU P_IMM WINDOW_MINIMUM_X
+    .AMAXU P_IMM WINDOW_BORDER_MINIMUM_X
     .AMINU P_DIR MAX_X
     sta.l kWindowTabPosX,X
     ldy #desktop_window_create_params_t.pos_y
     lda [PARAMS],Y
-    .AMAXU P_IMM WINDOW_MINIMUM_Y
+    .AMAXU P_IMM WINDOW_BORDER_MINIMUM_Y
     .AMINU P_DIR MAX_Y
     sta.l kWindowTabPosY,X
 ; Mark tiles as dirty
@@ -245,6 +257,7 @@ windowDelete:
 windowRender__:
     rep #$30
     phb
+; write tile buffer
     .ChangeDataBank $7E
     lda.w kWindowTileBufferSize
     beq @skip_write_tile_buffer
@@ -260,6 +273,39 @@ windowRender__:
     lda #$01
     sta.l MDMAEN
 @skip_write_tile_buffer:
+; write char buffer. Trust that we can upload the whole thing, since it is limited to 8K
+    rep #$30
+    lda.w kWindowDrawBufferSize
+    beq @end_write_char_buffer
+    stz.w kWindowDrawBufferSize
+    tay
+    ldx #0
+    lda #$7E
+    sta.l DMA0_SRCH
+    lda #(%00000001 + ($0100 * $18))
+    sta.l DMA0_CTL
+    lda #kWindowDrawBuffer
+    sta.l DMA0_SRCL
+@loop_write_char_buffer:
+        lda.w kWindowDrawBufferTargetAddr,X
+        sta.l VMADDR
+        lda #64
+        sta.l DMA0_SIZE
+        lda #$0100
+        sta.l MDMAEN-1
+        lda.w kWindowDrawBufferTargetAddr,X
+        clc
+        adc #$0100
+        sta.l VMADDR
+        lda #64
+        sta.l DMA0_SIZE
+        lda #$0100
+        sta.l MDMAEN-1
+        inx
+        inx
+        dey
+        bne @loop_write_char_buffer
+@end_write_char_buffer:
 ; end
     plb
     rtl
@@ -273,6 +319,7 @@ windowUpdate__:
     .DEFINE CURR_WINDOW $02
     .DEFINE TILE_X $03
     .DEFINE TILE_Y $04
+    .DEFINE FUNC kTmpBuffer
     rep #$30 ; 16A 16XY
     phb
     .ChangeDataBank $7E
@@ -282,8 +329,27 @@ windowUpdate__:
         lda.w kWindowNumDirtyTiles
         beq _window_update_end_process_dirty_tiles ; no dirty tiles
         lda.w kWindowDrawBufferSize
-        cmp #WINDOW_DRAW_BUFFER_TOTAL_SIZE
+        cmp #WINDOW_DRAW_BUFFER_ELEMENTS_LIMIT
         bcs _window_update_end_process_dirty_tiles ; can't store more dirty tiles in buffer
+        ; check scanline. Since we are in a disableInt__ block, need to make
+        ; sure we don't skip IRQ. Not a perfect process, but ensures all of our
+        ; execution time isn't dedicated to processing dirty tiles.
+        ; This does run a slight risk of slowing down the processing of tiles.
+        sep #$20
+        lda.l SLHV
+        lda.l SCANLINE_V
+        sta.l kTmpBuffer
+        lda.l SCANLINE_V
+        and #$01
+        sta.l kTmpBuffer+1
+        rep #$20
+        lda.l kTmpBuffer
+        cmp #180
+        bcc +
+        cmp #225
+        bcs +
+            jmp _window_update_end_process_dirty_tiles
+        +:
     ; process single dirty tile
         ; --kWindowNumDirtyTiles
         dec.w kWindowNumDirtyTiles
@@ -329,6 +395,8 @@ windowUpdate__:
         sta.w kWindowTileBuffer.1.vramAddr,Y
         ; check if tile is on border of window
         sep #$20 ; 8A 16XY
+        lda #0
+        xba
         lda.w kWindowTabPosY,X
         cmp.b TILE_Y
         beq @border_top
@@ -340,21 +408,26 @@ windowUpdate__:
         lda.w kWindowTabPosX,X
         cmp.b TILE_X
         beql @border_side
+        xba
+        lda #T_FLIPH>>8
+        xba
         clc
         adc.w kWindowTabWidth,X
         dec A
         cmp.b TILE_X
         beql @border_side
         rep #$30 ; 16A 16XY
-        ldx.w kWindowTileBufferSize
+        ldy.w kWindowTileBufferSize
         lda #0
-        sta.w kWindowTileBuffer.1.data,X
+        sta.w kWindowTileBuffer.1.data,Y
         jsr _window_process_inner
         jmp @end_process_tile
         @border_top:
             .ACCU 8
             .INDEX 16
             ; DO TOP BORDER
+            lda #0
+            xba
             lda.w kWindowTabPosX,X
             cmp.b TILE_X
             beq @corner
@@ -369,6 +442,7 @@ windowUpdate__:
             dec A
             cmp.b TILE_X
             beq @icon_minimize
+            lda #0
             jmp @border_vertical
         @icon_delete:
             .ACCU 8
@@ -398,26 +472,35 @@ windowUpdate__:
             .ACCU 8
             .INDEX 16
             ; DO BOTTOM BORDER
+            lda #T_FLIPV>>8
+            xba
             lda.w kWindowTabPosX,X
             cmp.b TILE_X
             beq @corner
+            xba
+            ora #T_FLIPH>>8
+            xba
             clc
             adc.w kWindowTabWidth,X
             dec A
             cmp.b TILE_X
             beq @corner
+            lda #T_FLIPV>>8
+            xba
         @border_vertical:
             rep #$30 ; 16A 16XY
+            and #$FF00
             ldx.w kWindowTileBufferSize
-            lda #deft($04, 0)
+            ora #deft($04, 0)
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @corner:
             .ACCU 8
             .INDEX 16
             rep #$30 ; 16A 16XY
+            and #$FF00
             ldx.w kWindowTileBufferSize
-            lda #deft($02, 0)
+            ora #deft($02, 0)
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @border_side:
@@ -425,8 +508,9 @@ windowUpdate__:
             .INDEX 16
             ; DO LEFT OR RIGHT BORDER (no corners)
             rep #$30 ; 16A 16XY
+            and #$FF00
             ldx.w kWindowTileBufferSize
-            lda #deft($06, 0)
+            ora #deft($06, 0)
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
     @end_process_tile:
@@ -440,7 +524,59 @@ windowUpdate__:
         jmp @loop_process_dirty_tiles
 
 _window_process_inner:
-    ; TODO
+    phd
+; set up function pointer in direct page
+    sep #$30
+    lda.w kWindowTabRenderFuncLow,X
+    sta.w FUNC+0
+    lda.w kWindowTabRenderFuncPage,X
+    sta.w FUNC+1
+    lda.w kWindowTabRenderFuncBank,X
+    sta.w FUNC+2
+; push tile position
+    lda.b TILE_X
+    pha
+    lda.b TILE_Y
+    pha
+; set direct page to that of process
+    ldy.w kWindowTabProcess,X
+    rep #$30
+    lda.w kProcTabDirectPageIndex,Y
+    and #$00FF
+    asl
+    asl
+    asl
+    asl
+    asl
+    tcd
+; Y = buffer pointer
+    lda.w kWindowDrawBufferSize
+    xba
+    lsr ; A×=128
+    clc
+    adc #kWindowDrawBuffer
+    tay
+; call function
+    phk
+    pea @postfunc - 1
+    jmp.w [FUNC]
+@postfunc:
+    nop
+    ; pop
+    .POPN 2
+    pld
+; schedule upload
+    rep #$30
+    lda.w kWindowDrawBufferSize
+    asl
+    tay
+    inc.w kWindowDrawBufferSize
+    lda.b CURR_TILE
+    asl
+    tax
+    lda.l _target_address_for_tile,X
+    sta.w kWindowDrawBufferTargetAddr,Y
+; end
     rts
 
 .ENDS

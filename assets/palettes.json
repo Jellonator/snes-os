@@ -14,5 +14,9 @@
     {
         "name": "desktop_blackout",
         "src": "assets/palettes/desktop_blackout.hex"
+    },
+    {
+        "name": "grayscale",
+        "src": "assets/palettes/grayscale.hex"
     }
 ]
