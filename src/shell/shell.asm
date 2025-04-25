@@ -11,13 +11,13 @@ ShellTextPalette__:
 ; selected color
     .DCOLOR_RGB5  0,  0,  0
     .DCOLOR_RGB5 31, 31, 31
-    .DCOLOR_RGB5 24, 20, 12
-    .DCOLOR_RGB5  0,  0,  0
+    .DCOLOR_RGB5 22, 22, 22
+    .DCOLOR_RGB5 12, 12, 12
 ; unselected color
     .DCOLOR_RGB5  0,  0,  0
     .DCOLOR_RGB5 12, 12, 12
-    .DCOLOR_RGB5 11, 10, 11
-    .DCOLOR_RGB5  0,  0,  0
+    .DCOLOR_RGB5  9,  9,  9
+    .DCOLOR_RGB5  7,  7,  7
 
 ShellBackPalette__:
     .DCOLOR_RGB5  0,  0,  0
