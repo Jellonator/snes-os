@@ -467,7 +467,7 @@ windowUpdate__:
         ; execution time isn't dedicated to processing dirty tiles.
         ; This does run a slight risk of slowing down the processing of tiles.
         lda.b NUM_HANDLED
-        cmp #32
+        cmp #8
         bcc @ignore_scanline
             sep #$20
             lda.l SLHV
@@ -768,6 +768,19 @@ windowHandleClick__:
     sta.b WINDOW
     sep #$10 ; 8A 8XY
     tax
+    pei ($00)
+    pei ($02)
+    pei ($04)
+    jsl kWindowMoveToFront__
+    rep #$20
+    pla
+    sta.b $04
+    pla
+    sta.b $02
+    pla
+    sta.b $00
+    sep #$30
+    ldx.b WINDOW
 ; check where on window we have clicked
         lda.w kWindowTabPosY,X
         cmp.b TILE_Y
@@ -896,6 +909,36 @@ windowHandleClick__:
     .UNDEFINE TILE_X
     .UNDEFINE TILE_Y
     .UNDEFINE FUNC
+
+; kWindowMoveToFront__([x8]WID window)
+; Move window to front
+kWindowMoveToFront__
+    sep #$30
+    cpx.w kWindowOrder
+    beq @end ; already in front
+; Find this window's location in order
+    txa
+    txy
+    ldx #1
+    @loop_search_window:
+        cmp.w kWindowOrder,X
+        beq @found_window
+        inx
+        jmp @loop_search_window
+    @found_window:
+; Move everything down
+    @loop_copy_windows:
+        lda.w kWindowOrder-1,X
+        sta.w kWindowOrder,X
+        dex
+        bne @loop_copy_windows
+; Set kWindowOrder[0] to WID
+    sty.w kWindowOrder
+; take ownership of front tiles and re-render window
+    tyx
+    jsl windowUpdateOwnerAndMarkDirty__
+@end:
+    rtl
 
 _window_close_cancel:
     sep #$30
@@ -1042,6 +1085,13 @@ kWindowProcessDrag__:
     .DEFINE MINV $05
     .DEFINE MAXV $06
     .DEFINE TEMP $07
+    ; if there are at least 8 dirty tiles, then skip drag. Might change in the future
+    rep #$20
+    lda.l kWindowNumDirtyTiles
+    cmp #8
+    bcc +
+        rtl
+    +:
     sep #$30
     phb
     .ChangeDataBank $7E

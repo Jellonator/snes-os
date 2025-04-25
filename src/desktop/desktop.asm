@@ -477,7 +477,7 @@ _cursorsprite_tile_by_dragmask:
     .db $42 ; L
     .db $42 ; R
     .db $42 ; LR (invalid)
-    .db $44 ; U
+    .db $48 ; U
     .db $46 ; UL
     .db $46 ; UR
     .db $46 ; ULR (invalid)
