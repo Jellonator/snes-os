@@ -1090,6 +1090,8 @@ kWindowProcessDrag__:
     lda.l kWindowNumDirtyTiles
     cmp #8
     bcc +
+        sep #$30
+        lda #0
         rtl
     +:
     sep #$30
@@ -1172,7 +1174,9 @@ kWindowProcessDrag__:
     jsl windowDetermineDirtyOwners__
 @skip_do_work:
 ; end
+    sep #$30
     plb
+    lda #1
     rtl
 
 ; dragmask $0B,S

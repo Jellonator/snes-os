@@ -207,7 +207,7 @@ _readinput_mouse:
     txa
     eor.l kMouse1Raw
     and.l kMouse1Raw
-    sta.l kJoy1Press
+    sta.l kMouse1Press
     txa
     and.l kMouse1Raw
     sta.l kMouse1Held

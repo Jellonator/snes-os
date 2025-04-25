@@ -275,15 +275,17 @@ _desktop_render:
     jsl windowRender__
     rtl
 
-_desktop_update:
-    sep #$20
-    .DisableInt__
-    rep #$30
-    ; get previous mouse position
+_update_prev_mouse:
     lda.b bMouseX
     sta.b bPrevMouseX
     lda.b bMouseY
     sta.b bPrevMouseY
+    rts
+
+_desktop_update:
+    sep #$20
+    .DisableInt__
+    rep #$30
     ; controller movement
     lda.l kJoy1Held
     bit #JOY_UP
@@ -388,7 +390,11 @@ _desktop_update:
     ; check release
     rep #$30
     lda.l kJoy1Held
-    bit #JOY_A
+    and #JOY_A
+    sta.b $00
+    lda.l kMouse1Held
+    and #MOUSE_LEFT
+    ora.b $00
     bne +
         lda.b bDragMask
         and #$00FF
@@ -422,6 +428,12 @@ _desktop_update:
         lsr
         pha
         jsl kWindowProcessDrag__
+        .ACCU 8
+        .INDEX 8
+        cmp #0
+        beq ++
+            jsr _update_prev_mouse
+        ++:
         .POPN 6
     +:
     ; check click
@@ -440,6 +452,7 @@ _desktop_update:
         cmp #0
         beq ++
             jsr _begin_drag
+            jsr _update_prev_mouse
         ++:
         .POPN 2
         jmp @end_check_click
@@ -460,6 +473,7 @@ _desktop_update:
         cmp #0
         beq ++
             jsr _begin_drag
+            jsr _update_prev_mouse
         ++:
         .POPN 2
     +:
