@@ -1026,11 +1026,13 @@ windowDetermineDirtyOwners__:
     .UNDEFINE CURR_TILE_INDEX $00
 
 ; Set borders matching mask to given position
-; kWindowProcessDrag__([s8]int dragmask, [s8]WID window, [s8]int tilex, [s8]int tiley)
-; dragmask $07,S
-; window $06,S
-; tilex $05,S
-; tiley $04,S
+; kWindowProcessDrag__([s8]int dragmask, [s8]WID window, [s8]int tilex, [s8]int tiley, [s8]int prevtilex, [s8] prevtiley)
+; dragmask $09,S
+; window $08,S
+; tilex $07,S
+; tiley $06,S
+; prevtilex $05,S
+; prevtiley $04,S
 kWindowProcessDrag__:
     .DEFINE DID_CHANGE $00
     .DEFINE NEW_X $01
@@ -1045,7 +1047,7 @@ kWindowProcessDrag__:
     .ChangeDataBank $7E
     stz.b DID_CHANGE
 ; copy values
-    lda 1+$06,S
+    lda 1+$08,S
     tax
     lda.w kWindowTabPosX,X
     sta.b NEW_X
@@ -1056,31 +1058,38 @@ kWindowProcessDrag__:
     lda.w kWindowTabHeight,X
     sta.b NEW_H
 ; do process steps according to mask
-    lda 1+$07,S
+    lda 1+$09,S
+    cmp #WINDOW_HANDLEMASK_TOP
+    bne +
+        jsr _process_drag_window
+        sep #$30
+        jmp @skip_rest_handlers
+    +:
     bit #WINDOW_HANDLEMASK_LEFT
     beq +
         jsr _process_drag_left
         sep #$30
     +:
-    lda 1+$07,S
+    lda 1+$09,S
     bit #WINDOW_HANDLEMASK_RIGHT
     beq +
         jsr _process_drag_right
         sep #$30
     +:
-    lda 1+$07,S
+    lda 1+$09,S
     bit #WINDOW_HANDLEMASK_TOP
     beq +
         jsr _process_drag_top
         sep #$30
     +:
-    lda 1+$07,S
+    lda 1+$09,S
     bit #WINDOW_HANDLEMASK_BOTTOM
     beq +
         jsr _process_drag_bottom
         sep #$30
     +:
 ; check if work was done
+@skip_rest_handlers:
     lda.b DID_CHANGE
     beq @skip_do_work
     ; mark previous window area as dirty
@@ -1097,7 +1106,7 @@ kWindowProcessDrag__:
     sta.b $01
     ; copy data into value
     sep #$30
-    lda 1+$06,S
+    lda 1+$08,S
     tax
     lda.b NEW_X
     sta.w kWindowTabPosX,X
@@ -1116,10 +1125,12 @@ kWindowProcessDrag__:
     plb
     rtl
 
-; dragmask $09,S
-; window $08,S
-; tilex $07,S
-; tiley $06,S
+; dragmask $0B,S
+; window $0A,S
+; tilex $09,S
+; tiley $08,S
+; prevtilex $07,S
+; prevtiley $06,S
 _process_drag_left:
     .ACCU 8
     .INDEX 8
@@ -1136,7 +1147,7 @@ _process_drag_left:
     sbc #WINDOW_BORDER_MINIMUM_WIDTH
     sta.b MAXV
 ; get tile, and clamp
-    lda 1+$07,S
+    lda 1+$09,S
     .AMINU P_DIR MAXV
     .AMAXU P_DIR MINV
     cmp.b NEW_X
@@ -1151,11 +1162,15 @@ _process_drag_left:
 @skip:
     rts
 
-; dragmask $09,S
-; window $08,S
-; tilex $07,S
-; tiley $06,S
+; dragmask $0B,S
+; window $0A,S
+; tilex $09,S
+; tiley $08,S
+; prevtilex $07,S
+; prevtiley $06,S
 _process_drag_right:
+    .ACCU 8
+    .INDEX 8
 ; determine acceptable min and max
     ; MIN = (window.x + WINDOW_BORDER_MINIMUM_WIDTH - 1)
     lda.w kWindowTabPosX,X
@@ -1166,7 +1181,7 @@ _process_drag_right:
     lda #WINDOW_BORDER_MAXIMUM_X
     sta.b MAXV
 ; get tile, and clamp
-    lda 1+$07,S
+    lda 1+$09,S
     .AMINU P_DIR MAXV
     .AMAXU P_DIR MINV
     ; NEW_W = TILE_X - window.x + 1
@@ -1181,10 +1196,12 @@ _process_drag_right:
 @skip:
     rts
 
-; dragmask $09,S
-; window $08,S
-; tilex $07,S
-; tiley $06,S
+; dragmask $0B,S
+; window $0A,S
+; tilex $09,S
+; tiley $08,S
+; prevtilex $07,S
+; prevtiley $06,S
 _process_drag_top:
     .ACCU 8
     .INDEX 8
@@ -1201,7 +1218,7 @@ _process_drag_top:
     sbc #WINDOW_BORDER_MINIMUM_HEIGHT
     sta.b MAXV
 ; get tile, and clamp
-    lda 1+$06,S
+    lda 1+$08,S
     .AMINU P_DIR MAXV
     .AMAXU P_DIR MINV
     cmp.b NEW_Y
@@ -1216,11 +1233,15 @@ _process_drag_top:
 @skip:
     rts
 
-; dragmask $09,S
-; window $08,S
-; tilex $07,S
-; tiley $06,S
+; dragmask $0B,S
+; window $0A,S
+; tilex $09,S
+; tiley $08,S
+; prevtilex $07,S
+; prevtiley $06,S
 _process_drag_bottom:
+    .ACCU 8
+    .INDEX 8
 ; determine acceptable min and max
     ; MIN = (window.y + WINDOW_BORDER_MINIMUM_HEIGHT - 1)
     lda.w kWindowTabPosY,X
@@ -1231,7 +1252,7 @@ _process_drag_bottom:
     lda #WINDOW_BORDER_MAXIMUM_Y
     sta.b MAXV
 ; get tile, and clamp
-    lda 1+$06,S
+    lda 1+$08,S
     .AMINU P_DIR MAXV
     .AMAXU P_DIR MINV
     ; NEW_W = TILE_X - window.x + 1
@@ -1245,6 +1266,69 @@ _process_drag_bottom:
         inc.b DID_CHANGE
 @skip:
     rts
+
+; special case: drag whole window
+; dragmask $0B,S
+; window $0A,S
+; tilex $09,S
+; tiley $08,S
+; prevtilex $07,S
+; prevtiley $06,S
+_process_drag_window:
+    .ACCU 8
+    .INDEX 8
+; move X
+    ; determine acceptable min and max
+    ; MIN = WINDOW_BORDER_MINIMUM_X
+    lda #WINDOW_BORDER_MINIMUM_X
+    sta.b MINV
+    ; MAX = (WINDOW_BORDER_MAXIMUM_X - window.width + 1)
+    lda #WINDOW_BORDER_MAXIMUM_X
+    sec
+    sbc.w kWindowTabWidth,X
+    inc A
+    sta.b MAXV
+    ; get tile, and clamp
+    lda 1+$09,S
+    sec
+    sbc 1+$07,S
+    clc
+    adc.b NEW_X
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    cmp.b NEW_X
+    beq @skipx
+    ; new tile position is different, indicate this
+        sta.b NEW_X
+        inc.b DID_CHANGE
+@skipx:
+; move Y
+    ; determine acceptable min and max
+    ; MIN = WINDOW_BORDER_MINIMUM_Y
+    lda #WINDOW_BORDER_MINIMUM_Y
+    sta.b MINV
+    ; MAX = (window.y + window.height - WINDOW_BORDER_MINIMUM_HEIGHT)
+    lda #WINDOW_BORDER_MAXIMUM_Y
+    sec
+    sbc.w kWindowTabHeight,X
+    inc A
+    sta.b MAXV
+    ; get tile, and clamp
+    lda 1+$08,S
+    sec
+    sbc 1+$06,S
+    clc
+    adc.b NEW_Y
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    cmp.b NEW_Y
+    beq @skipy
+    ; new tile position is different, indicate this
+        sta.b NEW_Y
+        inc.b DID_CHANGE
+@skipy:
+    rts
+
 .UNDEFINE DID_CHANGE
 .UNDEFINE NEW_X
 .UNDEFINE NEW_Y

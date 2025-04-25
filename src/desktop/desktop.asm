@@ -89,6 +89,8 @@ _default_bg1_tiles:
     bMouseY db
     bDragMask db
     bDragWindow db
+    bPrevMouseX db
+    bPrevMouseY db
 .ENDE
 
 _desktop_init:
@@ -277,6 +279,11 @@ _desktop_update:
     sep #$20
     .DisableInt__
     rep #$30
+    ; get previous mouse position
+    lda.b bMouseX
+    sta.b bPrevMouseX
+    lda.b bMouseY
+    sta.b bPrevMouseY
     ; controller movement
     lda.l kJoy1Held
     bit #JOY_UP
@@ -404,8 +411,18 @@ _desktop_update:
         lsr
         lsr
         pha
+        lda.b bPrevMouseX
+        lsr
+        lsr
+        lsr
+        pha
+        lda.b bPrevMouseY
+        lsr
+        lsr
+        lsr
+        pha
         jsl kWindowProcessDrag__
-        .POPN 4
+        .POPN 6
     +:
     ; check click
     rep #$30
