@@ -87,6 +87,8 @@ _default_bg1_tiles:
     bMouseX db
     bMouseYLow db
     bMouseY db
+    bDragMask db
+    bDragWindow db
 .ENDE
 
 _desktop_init:
@@ -191,6 +193,8 @@ _desktop_init:
     lda #128
     sta.b bMouseX
     sta.b bMouseY
+    stz.b bDragMask
+    stz.b bDragWindow
 ; re-enable render
     sep #$20 ; 8b A
     lda #%00001111
@@ -358,17 +362,51 @@ _desktop_update:
         sta.b bMouseYLow
     @end_y:
     ; set sprite location
-    sep #$20
+    sep #$30
+    ldx.b bDragMask
     lda.b bMouseX
+    sec
+    sbc #6
     sta.l kSpriteTable.1.pos_x
     lda.b bMouseY
+    sec
+    sbc #6
     sta.l kSpriteTable.1.pos_y
-    lda #$40
+    lda.l _cursorsprite_tile_by_dragmask,X
     sta.l kSpriteTable.1.tile
-    lda #%00110000
+    lda.l _cursorsprite_flag_by_dragmask,X
     sta.l kSpriteTable.1.flags
     lda #%00000010
     sta.l kSpriteTableHigh+0
+    ; check release
+    rep #$30
+    lda.l kJoy1Held
+    bit #JOY_A
+    bne +
+        lda.b bDragMask
+        and #$00FF
+        beq +
+        jsr _end_drag
+    +:
+    sep #$30
+    lda.b bDragMask
+    beq +
+        pha
+        lda.b bDragWindow
+        pha
+        lda.b bMouseX
+        lsr
+        lsr
+        lsr
+        pha
+        lda.b bMouseY
+        lsr
+        lsr
+        lsr
+        pha
+        jsl kWindowProcessDrag__
+        .POPN 4
+    +:
     ; check click
     rep #$30
     lda.l kJoy1Press
@@ -380,6 +418,12 @@ _desktop_update:
         lda.b bMouseY
         pha
         jsl windowHandleClick__
+        .ACCU 8
+        .INDEX 8
+        cmp #0
+        beq ++
+            jsr _begin_drag
+        ++:
         .POPN 2
         jmp @end_check_click
         .INDEX 16
@@ -394,6 +438,12 @@ _desktop_update:
         lda.b bMouseY
         pha
         jsl windowHandleClick__
+        .ACCU 8
+        .INDEX 8
+        cmp #0
+        beq ++
+            jsr _begin_drag
+        ++:
         .POPN 2
     +:
     @end_check_click:
@@ -403,6 +453,56 @@ _desktop_update:
     sep #$20
     .RestoreInt__
     jsl procWaitNMI
+    rts
+
+_cursorsprite_tile_by_dragmask:
+    .db $40 ; none
+    .db $42 ; L
+    .db $42 ; R
+    .db $42 ; LR (invalid)
+    .db $44 ; U
+    .db $46 ; UL
+    .db $46 ; UR
+    .db $46 ; ULR (invalid)
+    .db $44 ; D
+    .db $46 ; DL
+    .db $46 ; DR
+    .db $46 ; DLR (invalid)
+    .db $44 ; UD (invalid)
+    .db $46 ; UDL (invalid)
+    .db $46 ; UDR (invalid)
+    .db $46 ; UDLR (invalid)
+
+_cursorsprite_flag_by_dragmask:
+    .db %00110000 ; none
+    .db %00110000 ; L
+    .db %00110000 ; R
+    .db %00110000 ; LR (invalid)
+    .db %00110000 ; U
+    .db %00110000 ; UL
+    .db %10110000 ; UR
+    .db %00110000 ; ULR (invalid)
+    .db %00110000 ; D
+    .db %10110000 ; DL
+    .db %00110000 ; DR
+    .db %00110000 ; DLR (invalid)
+    .db %00110000 ; UD (invalid)
+    .db %00110000 ; UDL (invalid)
+    .db %00110000 ; UDR (invalid)
+    .db %00110000 ; UDLR (invalid)
+
+
+_begin_drag:
+    .ACCU 8
+    .INDEX 8
+    stx.b bDragWindow
+    sta.b bDragMask
+    rts
+
+_end_drag:
+    sep #$20
+    stz.b bDragWindow
+    stz.b bDragMask
     rts
 
 .ENDS

@@ -448,8 +448,10 @@ windowUpdate__:
     .DEFINE CURR_WINDOW $02
     .DEFINE TILE_X $03
     .DEFINE TILE_Y $04
+    .DEFINE NUM_HANDLED $05
     .DEFINE FUNC kTmpBuffer
     rep #$30 ; 16A 16XY
+    stz.b NUM_HANDLED
     phb
     .ChangeDataBank $7E
 ; process dirty tiles
@@ -464,21 +466,26 @@ windowUpdate__:
         ; sure we don't skip IRQ. Not a perfect process, but ensures all of our
         ; execution time isn't dedicated to processing dirty tiles.
         ; This does run a slight risk of slowing down the processing of tiles.
-        sep #$20
-        lda.l SLHV
-        lda.l SCANLINE_V
-        sta.l kTmpBuffer
-        lda.l SCANLINE_V
-        and #$01
-        sta.l kTmpBuffer+1
-        rep #$20
-        lda.l kTmpBuffer
-        cmp #180
-        bcc +
-        cmp #225
-        bcs +
-            jmp _window_update_end_process_dirty_tiles
-        +:
+        lda.b NUM_HANDLED
+        cmp #32
+        bcc @ignore_scanline
+            sep #$20
+            lda.l SLHV
+            lda.l SCANLINE_V
+            sta.l kTmpBuffer
+            lda.l SCANLINE_V
+            and #$01
+            sta.l kTmpBuffer+1
+            rep #$20
+            lda.l kTmpBuffer
+            cmp #180
+            bcc +
+            cmp #225
+            bcs +
+                jmp _window_update_end_process_dirty_tiles
+            +:
+        @ignore_scanline:
+        inc.b NUM_HANDLED
     ; process single dirty tile
         ; --kWindowNumDirtyTiles
         dec.w kWindowNumDirtyTiles
@@ -533,7 +540,7 @@ windowUpdate__:
         adc.w kWindowTabHeight,X
         dec A
         cmp.b TILE_Y
-        beq @border_bottom
+        beql @border_bottom
         lda.w kWindowTabPosX,X
         cmp.b TILE_X
         beql @border_side
@@ -562,6 +569,12 @@ windowUpdate__:
             beq @corner
             clc
             adc.w kWindowTabWidth,X
+            xba
+            lda #T_FLIPH>>8
+            xba
+            dec A
+            cmp.b TILE_X
+            beq @corner
             dec A
             cmp.b TILE_X
             beq @icon_delete
@@ -649,9 +662,8 @@ windowUpdate__:
         clc
         adc #_sizeof_window_tile_buffer_t
         sta.w kWindowTileBufferSize
-    ; iter, maybe
+    ; iter
         jmp @loop_process_dirty_tiles
-
 _window_process_inner:
     phd
 ; set up function pointer in direct page
@@ -713,6 +725,8 @@ _window_process_inner:
     .UNDEFINE TILE_Y
     .UNDEFINE FUNC
 
+; [x8] window
+; [a8] handlemask (0 means border was not clicked)
 ; windowHandleClick([s8]mousex, [s8]mousey)
 ; mousex $05,S
 ; mousey $04,S
@@ -776,7 +790,7 @@ windowHandleClick__:
         jmp @end_process_tile
         @border_top:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             lda #0
             xba
             lda.w kWindowTabPosX,X
@@ -784,6 +798,9 @@ windowHandleClick__:
             beq @corner_top_left
             clc
             adc.w kWindowTabWidth,X
+            dec A
+            cmp.b TILE_X
+            beq @corner_top_right
             dec A
             cmp.b TILE_X
             beq @icon_delete
@@ -794,10 +811,11 @@ windowHandleClick__:
             cmp.b TILE_X
             beq @icon_minimize
             ; TOP BORDER CLICKED
-            jmp @end_process_tile
+            lda #WINDOW_HANDLEMASK_TOP
+            jmp @end_process_tile_with_border
         @icon_delete:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; CLOSE CLICKED
             sep #$30
             ldx.b WINDOW
@@ -805,16 +823,17 @@ windowHandleClick__:
             jmp @end_process_tile
         @icon_fullscreen:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; FULLSCREEN CLICKED
+            jmp @end_process_tile
         @icon_minimize:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; MINIMIZE CLICKED
             jmp @end_process_tile
         @border_bottom:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             lda.w kWindowTabPosX,X
             cmp.b TILE_X
             beq @corner_bottom_left
@@ -824,39 +843,53 @@ windowHandleClick__:
             cmp.b TILE_X
             beq @corner_bottom_right
             ; BOTTOM SIDE CLICKED
-            jmp @end_process_tile
+            lda #WINDOW_HANDLEMASK_BOTTOM
+            jmp @end_process_tile_with_border
         @corner_top_left:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; TOP LEFT CLICKED
-            jmp @end_process_tile
+            lda #WINDOW_HANDLEMASK_TOP | WINDOW_HANDLEMASK_LEFT
+            jmp @end_process_tile_with_border
         @corner_top_right:
             .ACCU 8
-            .INDEX 16
-            ; TOP LEFT CLICKED
-            jmp @end_process_tile
+            .INDEX 8
+            ; TOP RIGHT CLICKED
+            lda #WINDOW_HANDLEMASK_TOP | WINDOW_HANDLEMASK_RIGHT
+            jmp @end_process_tile_with_border
         @corner_bottom_left:
             .ACCU 8
-            .INDEX 16
-            ; TOP LEFT CLICKED
-            jmp @end_process_tile
+            .INDEX 8
+            ; BOTTOM LEFT CLICKED
+            lda #WINDOW_HANDLEMASK_BOTTOM | WINDOW_HANDLEMASK_LEFT
+            jmp @end_process_tile_with_border
         @corner_bottom_right:
             .ACCU 8
-            .INDEX 16
-            ; TOP LEFT CLICKED
-            jmp @end_process_tile
+            .INDEX 8
+            ; BOTTOM RIGHT CLICKED
+            lda #WINDOW_HANDLEMASK_BOTTOM | WINDOW_HANDLEMASK_RIGHT
+            jmp @end_process_tile_with_border
         @border_left:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; LEFT BORDER CLICKED
-            jmp @end_process_tile
+            lda #WINDOW_HANDLEMASK_LEFT
+            jmp @end_process_tile_with_border
         @border_right:
             .ACCU 8
-            .INDEX 16
+            .INDEX 8
             ; RIGHT BORDER CLICKED
-            jmp @end_process_tile
-    @end_process_tile:
+            lda #WINDOW_HANDLEMASK_RIGHT
+            jmp @end_process_tile_with_border
+@end_process_tile:
     plb
+    sep #$30
+    ldx.b WINDOW
+    lda #0
+    rtl
+@end_process_tile_with_border:
+    plb
+    sep #$30
     rtl
     .UNDEFINE CURR_TILE
     .UNDEFINE WINDOW
@@ -991,6 +1024,235 @@ windowDetermineDirtyOwners__:
     @end_loop_dirty_tiles:
     rtl
     .UNDEFINE CURR_TILE_INDEX $00
+
+; Set borders matching mask to given position
+; kWindowProcessDrag__([s8]int dragmask, [s8]WID window, [s8]int tilex, [s8]int tiley)
+; dragmask $07,S
+; window $06,S
+; tilex $05,S
+; tiley $04,S
+kWindowProcessDrag__:
+    .DEFINE DID_CHANGE $00
+    .DEFINE NEW_X $01
+    .DEFINE NEW_Y $02
+    .DEFINE NEW_W $03
+    .DEFINE NEW_H $04
+    .DEFINE MINV $05
+    .DEFINE MAXV $06
+    .DEFINE TEMP $07
+    sep #$30
+    phb
+    .ChangeDataBank $7E
+    stz.b DID_CHANGE
+; copy values
+    lda 1+$06,S
+    tax
+    lda.w kWindowTabPosX,X
+    sta.b NEW_X
+    lda.w kWindowTabPosY,X
+    sta.b NEW_Y
+    lda.w kWindowTabWidth,X
+    sta.b NEW_W
+    lda.w kWindowTabHeight,X
+    sta.b NEW_H
+; do process steps according to mask
+    lda 1+$07,S
+    bit #WINDOW_HANDLEMASK_LEFT
+    beq +
+        jsr _process_drag_left
+        sep #$30
+    +:
+    lda 1+$07,S
+    bit #WINDOW_HANDLEMASK_RIGHT
+    beq +
+        jsr _process_drag_right
+        sep #$30
+    +:
+    lda 1+$07,S
+    bit #WINDOW_HANDLEMASK_TOP
+    beq +
+        jsr _process_drag_top
+        sep #$30
+    +:
+    lda 1+$07,S
+    bit #WINDOW_HANDLEMASK_BOTTOM
+    beq +
+        jsr _process_drag_bottom
+        sep #$30
+    +:
+; check if work was done
+    lda.b DID_CHANGE
+    beq @skip_do_work
+    ; mark previous window area as dirty
+    rep #$20
+    lda.b $01
+    pha
+    lda.b $03
+    pha
+    jsl windowMarkDirty__
+    rep #$20
+    pla
+    sta.b $03
+    pla
+    sta.b $01
+    ; copy data into value
+    sep #$30
+    lda 1+$06,S
+    tax
+    lda.b NEW_X
+    sta.w kWindowTabPosX,X
+    lda.b NEW_Y
+    sta.w kWindowTabPosY,X
+    lda.b NEW_W
+    sta.w kWindowTabWidth,X
+    lda.b NEW_H
+    sta.w kWindowTabHeight,X
+    ; mark new window area as dirty, and take ownership of new area
+    jsl windowUpdateOwnerAndMarkDirty__
+    ; TODO: make more efficient, somehow?
+    jsl windowDetermineDirtyOwners__
+@skip_do_work:
+; end
+    plb
+    rtl
+
+; dragmask $09,S
+; window $08,S
+; tilex $07,S
+; tiley $06,S
+_process_drag_left:
+    .ACCU 8
+    .INDEX 8
+; determine acceptable min and max
+    ; MIN = WINDOW_BORDER_MINIMUM_X
+    lda #WINDOW_BORDER_MINIMUM_X
+    sta.b MINV
+    ; MAX = (window.x + window.width - WINDOW_BORDER_MINIMUM_WIDTH)
+    lda.w kWindowTabPosX,X
+    clc
+    adc.w kWindowTabWidth,X
+    sta.b TEMP
+    sec
+    sbc #WINDOW_BORDER_MINIMUM_WIDTH
+    sta.b MAXV
+; get tile, and clamp
+    lda 1+$07,S
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    cmp.b NEW_X
+    beq @skip
+    ; new tile position is different, indicate this
+        sta.b NEW_X
+        lda.b TEMP
+        sec
+        sbc.b NEW_X
+        sta.b NEW_W
+        inc.b DID_CHANGE
+@skip:
+    rts
+
+; dragmask $09,S
+; window $08,S
+; tilex $07,S
+; tiley $06,S
+_process_drag_right:
+; determine acceptable min and max
+    ; MIN = (window.x + WINDOW_BORDER_MINIMUM_WIDTH - 1)
+    lda.w kWindowTabPosX,X
+    clc
+    adc #WINDOW_BORDER_MINIMUM_WIDTH-1
+    sta.b MINV
+    ; MAX = WINDOW_BORDER_MAXIMUM_X
+    lda #WINDOW_BORDER_MAXIMUM_X
+    sta.b MAXV
+; get tile, and clamp
+    lda 1+$07,S
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    ; NEW_W = TILE_X - window.x + 1
+    sec
+    sbc.w kWindowTabPosX,X
+    inc A
+    cmp.b NEW_W
+    beq @skip
+    ; new tile position is different, indicate this
+        sta.b NEW_W
+        inc.b DID_CHANGE
+@skip:
+    rts
+
+; dragmask $09,S
+; window $08,S
+; tilex $07,S
+; tiley $06,S
+_process_drag_top:
+    .ACCU 8
+    .INDEX 8
+; determine acceptable min and max
+    ; MIN = WINDOW_BORDER_MINIMUM_Y
+    lda #WINDOW_BORDER_MINIMUM_Y
+    sta.b MINV
+    ; MAX = (window.y + window.height - WINDOW_BORDER_MINIMUM_HEIGHT)
+    lda.w kWindowTabPosY,X
+    clc
+    adc.w kWindowTabHeight,X
+    sta.b TEMP
+    sec
+    sbc #WINDOW_BORDER_MINIMUM_HEIGHT
+    sta.b MAXV
+; get tile, and clamp
+    lda 1+$06,S
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    cmp.b NEW_Y
+    beq @skip
+    ; new tile position is different, indicate this
+        sta.b NEW_Y
+        lda.b TEMP
+        sec
+        sbc.b NEW_Y
+        sta.b NEW_H
+        inc.b DID_CHANGE
+@skip:
+    rts
+
+; dragmask $09,S
+; window $08,S
+; tilex $07,S
+; tiley $06,S
+_process_drag_bottom:
+; determine acceptable min and max
+    ; MIN = (window.y + WINDOW_BORDER_MINIMUM_HEIGHT - 1)
+    lda.w kWindowTabPosY,X
+    clc
+    adc #WINDOW_BORDER_MINIMUM_HEIGHT-1
+    sta.b MINV
+    ; MAX = WINDOW_BORDER_MAXIMUM_Y
+    lda #WINDOW_BORDER_MAXIMUM_Y
+    sta.b MAXV
+; get tile, and clamp
+    lda 1+$06,S
+    .AMINU P_DIR MAXV
+    .AMAXU P_DIR MINV
+    ; NEW_W = TILE_X - window.x + 1
+    sec
+    sbc.w kWindowTabPosY,X
+    inc A
+    cmp.b NEW_H
+    beq @skip
+    ; new tile position is different, indicate this
+        sta.b NEW_H
+        inc.b DID_CHANGE
+@skip:
+    rts
+.UNDEFINE DID_CHANGE
+.UNDEFINE NEW_X
+.UNDEFINE NEW_Y
+.UNDEFINE NEW_W
+.UNDEFINE NEW_H
+.UNDEFINE MINV
+.UNDEFINE MAXV
+.UNDEFINE TEMP
 
 ; renderTile([x16]WID window, [By16]void* buffer, [s8]int x, [s8] int y)
 ; buffer[  0.. 32] is first tile,
