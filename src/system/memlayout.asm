@@ -61,10 +61,13 @@
     kMouseDoingInitialize dw
 ; Window info
     ; Owner of each desktop tile (WINDOW ID)
+    .ALIGN $0100
     kWindowTileTabOwner ds 32*32
     ; Whether each tile is dirty
+    .ALIGN $0100
     kWindowTileTabDirty ds 32*32
     ; List of dirty tiles
+    .ALIGN $0100
     kWindowDirtyTileList dsw 32*32
     kWindowNumDirtyTiles dw
     ; Owner of each window (PID)
@@ -79,6 +82,10 @@
     kWindowTabRenderFuncBank ds MAX_WINDOW_COUNT+1
     kWindowTabRenderFuncPage ds MAX_WINDOW_COUNT+1
     kWindowTabRenderFuncLow ds MAX_WINDOW_COUNT+1
+    ; Window signal function addresses
+    kWindowTabSignalFuncBank ds MAX_WINDOW_COUNT+1
+    kWindowTabSignalFuncPage ds MAX_WINDOW_COUNT+1
+    kWindowTabSignalFuncLow ds MAX_WINDOW_COUNT+1
     ; Draw Buffer (character data to be copied to VRAM)
     .ALIGN $0100
     kWindowDrawBuffer ds WINDOW_DRAW_BUFFER_TOTAL_SIZE
@@ -87,6 +94,7 @@
     ; kWindowDrawBufferSourceAddr dsw WINDOW_DRAW_BUFFER_ELEMENTS
     ; Tile Buffer (tile data to be copied to VRAM)
     kWindowTileBufferSize dw
+    .ALIGN $0100
     kWindowTileBuffer INSTANCEOF window_tile_buffer_t (32*32)
     ; Window order (front -> back)
     kWindowOrder ds MAX_WINDOW_COUNT+1

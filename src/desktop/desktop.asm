@@ -203,10 +203,13 @@ _desktop_init:
     .PEAL _defaultwindow2
     jsl windowCreate
     .POPN 3
+    .PEAL _defaultwindow3
+    jsl windowCreate
+    .POPN 3
     rts
 
 .DSTRUCT _defaultwindow INSTANCEOF desktop_window_create_params_t VALUES
-    width .db 12
+    width .db 16
     height .db 12
     pos_x .db 0
     pos_y .db 0
@@ -216,7 +219,15 @@ _desktop_init:
 .DSTRUCT _defaultwindow2 INSTANCEOF desktop_window_create_params_t VALUES
     width .db 8
     height .db 8
-    pos_x .db 30
+    pos_x .db 12
+    pos_y .db 12
+    renderTile .dl _tilerender_null
+.ENDST
+
+.DSTRUCT _defaultwindow3 INSTANCEOF desktop_window_create_params_t VALUES
+    width .db 8
+    height .db 16
+    pos_x .db 6
     pos_y .db 30
     renderTile .dl _tilerender_null
 .ENDST
@@ -358,6 +369,34 @@ _desktop_update:
     sta.l kSpriteTable.1.flags
     lda #%00000010
     sta.l kSpriteTableHigh+0
+    ; check click
+    rep #$30
+    lda.l kJoy1Press
+    bit #JOY_A
+    beq +
+        sep #$20
+        lda.b bMouseX
+        pha
+        lda.b bMouseY
+        pha
+        jsl windowHandleClick__
+        .POPN 2
+        jmp @end_check_click
+        .INDEX 16
+        .ACCU 16
+    +:
+    lda.l kMouse1Press
+    bit #MOUSE_LEFT
+    beq +
+        sep #$20
+        lda.b bMouseX
+        pha
+        lda.b bMouseY
+        pha
+        jsl windowHandleClick__
+        .POPN 2
+    +:
+    @end_check_click:
     ; update windows
     jsl windowUpdate__
     ; end

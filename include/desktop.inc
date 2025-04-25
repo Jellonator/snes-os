@@ -51,7 +51,7 @@
     ; renderTile([x16]WID window, [By16]void* buffer, [s8]int x, [s8] int y)
     renderTile dl
     ; Function that is called when window receives a signal
-    ; signal([x8]WID window, [a8]int signal)
+    ; signal([x8]WID window, [a8]int signal, [s8]mousex, [s8]mousey)
     signal dl
 .ENDST
 
@@ -72,4 +72,6 @@
 .DEFINE MAX_MOUSE_COORD_X (DESKTOP_TILE_MAX_X*8-1)
 .DEFINE MAX_MOUSE_COORD_Y (DESKTOP_TILE_MAX_Y*8-1)
 
-.DEFINE WINDOW_SIGNAL_KILL 1
+.DEFINE WINDOW_SIGNAL_LEFTCLICK $01
+.DEFINE WINDOW_SIGNAL_RIGHTCLICK $01
+.DEFINE WINDOW_SIGNAL_KILL $FF

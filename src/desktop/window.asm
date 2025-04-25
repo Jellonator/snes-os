@@ -10,7 +10,7 @@ _target_address_for_tile:
 .REPT 32 INDEX iy
     .REPT 32 INDEX ix
         .IF ix < WINDOW_CONTENT_MINIMUM_X || ix > WINDOW_CONTENT_MAXIMUM_X || iy < WINDOW_CONTENT_MINIMUM_Y || iy > WINDOW_CONTENT_MAXIMUM_Y
-            .dw 0
+            .dw DESKTOP_BG1_CHAR_BASE_ADDR
         .ELSE
             .IF (INDEX #$0300) == 0
                 .REDEFINE INDEX (INDEX + $02)
@@ -58,6 +58,29 @@ windowInit__:
     sta.w kWindowTileBufferSize
     sta.w kWindowNumDirtyTiles
     sta.w kWindowNumWindows
+; set renderer for null tiles
+    sep #$20
+    lda #lobyte(_tilerender_clear)
+    sta.w kWindowTabRenderFuncLow
+    lda #hibyte(_tilerender_clear)
+    sta.w kWindowTabRenderFuncPage
+    lda #bankbyte(_tilerender_clear)
+    sta.w kWindowTabRenderFuncBank
+; set signal for null tiles
+    lda #lobyte(_tilesignal_null)
+    sta.w kWindowTabSignalFuncLow
+    lda #hibyte(_tilesignal_null)
+    sta.w kWindowTabSignalFuncPage
+    lda #bankbyte(_tilesignal_null)
+    sta.w kWindowTabSignalFuncBank
+; set position of 'null' window to contain whole desktop area
+    lda #1
+    sta.w kWindowTabPosX+0
+    sta.w kWindowTabPosY+1
+    lda #30
+    sta.w kWindowTabWidth
+    lda #28
+    sta.w kWindowTabHeight
 ; end
     plb
     rtl
@@ -84,9 +107,20 @@ windowCreate:
     tax
     inc A
     sta.l kWindowNumWindows
-; bump up each window ID (new window will take window order 0)
+; find free window ID (process is NULL) (where ID > 0)
     sep #$30
-    sta.b CURRENT_WINDOW_ID
+    ldx #0
+@loop_find_window_id:
+        inx
+        lda.l kWindowTabProcess,X
+        beq @found_window_id
+        jmp @loop_find_window_id
+@found_window_id:
+    stx.b CURRENT_WINDOW_ID
+; bump up each window ID (new window will take window order 0)
+    lda.l kWindowNumWindows
+    dec A
+    tax
     cpx #0
     beq @end_bump_windows
 @loop_bump_windows:
@@ -119,6 +153,16 @@ windowCreate:
     iny
     lda [PARAMS],Y
     sta.l kWindowTabRenderFuncBank,X
+; Copy signal function into window
+    ldy #desktop_window_create_params_t.signal
+    lda [PARAMS],Y
+    sta.l kWindowTabSignalFuncLow,X
+    iny
+    lda [PARAMS],Y
+    sta.l kWindowTabSignalFuncPage,X
+    iny
+    lda [PARAMS],Y
+    sta.l kWindowTabSignalFuncBank,X
 ; Determine window location
     ldy #desktop_window_create_params_t.width
     lda [PARAMS],Y
@@ -151,7 +195,7 @@ windowCreate:
     .AMINU P_DIR MAX_Y
     sta.l kWindowTabPosY,X
 ; Mark tiles as dirty
-    jsl windowMarkDirty__
+    jsl windowUpdateOwnerAndMarkDirty__
 ; end
     sep #$30
     ldx.b CURRENT_WINDOW_ID
@@ -162,8 +206,9 @@ windowCreate:
     .UNDEFINE MAX_X
     .UNDEFINE MAX_Y
 
-; windowMarkDirty__([x8]WID window)
-windowMarkDirty__:
+; windowUpdateOwnerAndMarkDirty__([x8]WID window)
+; Set all tiles in `window` as owned by `window`, and mark them as dirty.
+windowUpdateOwnerAndMarkDirty__:
     .DEFINE CURRENT_WINDOW_ID $00
     .DEFINE FROM_X $01
     .DEFINE FROM_Y $02
@@ -251,8 +296,92 @@ windowMarkDirty__:
     .UNDEFINE CURR_X
     .UNDEFINE CURR_Y
 
-windowDelete:
+; windowMarkDirty__([x8]WID window)
+; Mark all tiles in `window`'s bounds as dirty, without affecting any other data
+windowMarkDirty__:
+    .DEFINE CURRENT_WINDOW_ID $00
+    .DEFINE FROM_X $01
+    .DEFINE FROM_Y $02
+    .DEFINE END_X $03
+    .DEFINE END_Y $04
+    .DEFINE CURR_X $05
+    .DEFINE CURR_Y $06
+; setup variables
+    sep #$30
+    stx.b CURRENT_WINDOW_ID
+    lda.l kWindowTabPosX,X
+    sta.b FROM_X
+    lda.l kWindowTabPosY,X
+    sta.b FROM_Y
+    lda.l kWindowTabWidth,X
+    clc
+    adc.b FROM_X
+    sta.b END_X
+    lda.l kWindowTabHeight,X
+    clc
+    adc.b FROM_Y
+    sta.b END_Y
+; iterate
+    lda.b FROM_Y
+    sta.b CURR_Y
+    @iter_y:
+        lda.b FROM_X
+        sta.b CURR_X
+        @iter_x:
+            rep #$30
+            ; X = tile index
+            lda.b CURR_X
+            and #$001F
+            sta.l kTmpBuffer
+            lda.b CURR_Y
+            and #$001F
+            asl
+            asl
+            asl
+            asl
+            asl
+            ora.l kTmpBuffer
+            tax
+            tay
+            sep #$20
+            ; if kWindowTileTabDirty[X]: continue
+            lda.l kWindowTileTabDirty,X
+            bne @skip
+            ; kWindowTileTabDirty[X] = 1
+            lda #1
+            sta.l kWindowTileTabDirty,X
+            ; kWIndowDirtyTileList[N] = X
+            rep #$20
+            lda.l kWindowNumDirtyTiles
+            asl
+            tax
+            tya
+            sta.l kWindowDirtyTileList,X
+            ; ++ kWindowNumDirtyTiles
+            lda.l kWindowNumDirtyTiles
+            inc A
+            sta.l kWindowNumDirtyTiles
+        @skip:
+            ; iter
+            sep #$30
+            lda.b CURR_X
+            inc A
+            sta.b CURR_X
+            cmp.b END_X
+            bcc @iter_x
+        lda.b CURR_Y
+        inc A
+        sta.b CURR_Y
+        cmp.b END_Y
+        bcc @iter_y
     rtl
+    .UNDEFINE CURRENT_WINDOW_ID
+    .UNDEFINE FROM_X
+    .UNDEFINE FROM_Y
+    .UNDEFINE END_X
+    .UNDEFINE END_Y
+    .UNDEFINE CURR_X
+    .UNDEFINE CURR_Y
 
 windowRender__:
     rep #$30
@@ -449,7 +578,7 @@ windowUpdate__:
             .INDEX 16
             rep #$30 ; 16A 16XY
             ldx.w kWindowTileBufferSize
-            lda #deft($26, 1)
+            lda #deft($26, 1) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @icon_fullscreen:
@@ -457,7 +586,7 @@ windowUpdate__:
             .INDEX 16
             rep #$30 ; 16A 16XY
             ldx.w kWindowTileBufferSize
-            lda #deft($22, 0)
+            lda #deft($22, 0) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @icon_minimize:
@@ -465,7 +594,7 @@ windowUpdate__:
             .INDEX 16
             rep #$30 ; 16A 16XY
             ldx.w kWindowTileBufferSize
-            lda #deft($24, 0)
+            lda #deft($24, 0) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @border_bottom:
@@ -491,7 +620,7 @@ windowUpdate__:
             rep #$30 ; 16A 16XY
             and #$FF00
             ldx.w kWindowTileBufferSize
-            ora #deft($04, 0)
+            ora #deft($04, 0) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @corner:
@@ -500,7 +629,7 @@ windowUpdate__:
             rep #$30 ; 16A 16XY
             and #$FF00
             ldx.w kWindowTileBufferSize
-            ora #deft($02, 0)
+            ora #deft($02, 0) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
         @border_side:
@@ -510,7 +639,7 @@ windowUpdate__:
             rep #$30 ; 16A 16XY
             and #$FF00
             ldx.w kWindowTileBufferSize
-            ora #deft($06, 0)
+            ora #deft($06, 0) | T_HIGHP
             sta.w kWindowTileBuffer.1.data,X
             jmp @end_process_tile
     @end_process_tile:
@@ -578,5 +707,312 @@ _window_process_inner:
     sta.w kWindowDrawBufferTargetAddr,Y
 ; end
     rts
+    .UNDEFINE CURR_TILE
+    .UNDEFINE CURR_WINDOW
+    .UNDEFINE TILE_X
+    .UNDEFINE TILE_Y
+    .UNDEFINE FUNC
+
+; windowHandleClick([s8]mousex, [s8]mousey)
+; mousex $05,S
+; mousey $04,S
+windowHandleClick__:
+    .DEFINE CURR_TILE $00
+    .DEFINE WINDOW $02
+    .DEFINE TILE_X $03
+    .DEFINE TILE_Y $04
+    .DEFINE FUNC kTmpBuffer
+    phb
+    .ChangeDataBank $7E
+; get index of tile
+    rep #$20
+    lda 1+$05,S
+    and #$00FF
+    lsr
+    lsr
+    lsr
+    sta.b CURR_TILE
+    sep #$20
+    sta.b TILE_X
+    lda 1+$04,S
+    and #$00FF
+    lsr
+    lsr
+    lsr
+    sta.b TILE_Y
+    rep #$20
+    xba
+    lsr
+    lsr
+    lsr
+    ora.b CURR_TILE
+    sta.b CURR_TILE
+; get window
+    tax
+    sep #$20 ; 8A 16XY
+    lda.w kWindowTileTabOwner,X
+    sta.b WINDOW
+    sep #$10 ; 8A 8XY
+    tax
+; check where on window we have clicked
+        lda.w kWindowTabPosY,X
+        cmp.b TILE_Y
+        beq @border_top
+        clc
+        adc.w kWindowTabHeight,X
+        dec A
+        cmp.b TILE_Y
+        beq @border_bottom
+        lda.w kWindowTabPosX,X
+        cmp.b TILE_X
+        beql @border_left
+        clc
+        adc.w kWindowTabWidth,X
+        dec A
+        cmp.b TILE_X
+        beql @border_right
+        rep #$30 ; 16A 16XY
+        ; CLICKED INSIDE WINDOW
+        jmp @end_process_tile
+        @border_top:
+            .ACCU 8
+            .INDEX 16
+            lda #0
+            xba
+            lda.w kWindowTabPosX,X
+            cmp.b TILE_X
+            beq @corner_top_left
+            clc
+            adc.w kWindowTabWidth,X
+            dec A
+            cmp.b TILE_X
+            beq @icon_delete
+            dec A
+            cmp.b TILE_X
+            beq @icon_fullscreen
+            dec A
+            cmp.b TILE_X
+            beq @icon_minimize
+            ; TOP BORDER CLICKED
+            jmp @end_process_tile
+        @icon_delete:
+            .ACCU 8
+            .INDEX 16
+            ; CLOSE CLICKED
+            sep #$30
+            ldx.b WINDOW
+            jsl windowClose
+            jmp @end_process_tile
+        @icon_fullscreen:
+            .ACCU 8
+            .INDEX 16
+            ; FULLSCREEN CLICKED
+        @icon_minimize:
+            .ACCU 8
+            .INDEX 16
+            ; MINIMIZE CLICKED
+            jmp @end_process_tile
+        @border_bottom:
+            .ACCU 8
+            .INDEX 16
+            lda.w kWindowTabPosX,X
+            cmp.b TILE_X
+            beq @corner_bottom_left
+            clc
+            adc.w kWindowTabWidth,X
+            dec A
+            cmp.b TILE_X
+            beq @corner_bottom_right
+            ; BOTTOM SIDE CLICKED
+            jmp @end_process_tile
+        @corner_top_left:
+            .ACCU 8
+            .INDEX 16
+            ; TOP LEFT CLICKED
+            jmp @end_process_tile
+        @corner_top_right:
+            .ACCU 8
+            .INDEX 16
+            ; TOP LEFT CLICKED
+            jmp @end_process_tile
+        @corner_bottom_left:
+            .ACCU 8
+            .INDEX 16
+            ; TOP LEFT CLICKED
+            jmp @end_process_tile
+        @corner_bottom_right:
+            .ACCU 8
+            .INDEX 16
+            ; TOP LEFT CLICKED
+            jmp @end_process_tile
+        @border_left:
+            .ACCU 8
+            .INDEX 16
+            ; LEFT BORDER CLICKED
+            jmp @end_process_tile
+        @border_right:
+            .ACCU 8
+            .INDEX 16
+            ; RIGHT BORDER CLICKED
+            jmp @end_process_tile
+    @end_process_tile:
+    plb
+    rtl
+    .UNDEFINE CURR_TILE
+    .UNDEFINE WINDOW
+    .UNDEFINE TILE_X
+    .UNDEFINE TILE_Y
+    .UNDEFINE FUNC
+
+_window_close_cancel:
+    sep #$30
+    .RestoreInt__
+    plb
+    rtl
+; windowClose([x8]WID window)
+windowClose:
+    .DEFINE CURRENT_WINDOW_ID $00
+    .DEFINE TMP $02
+    sep #$30
+    phb
+    .ChangeDataBank $7E
+    .DisableInt__
+    ; check that window is open and valid
+    lda.w kWindowTabProcess,X
+    beq _window_close_cancel ; window is not active: cancel
+    stx.b CURRENT_WINDOW_ID
+    lda.w kWindowNumWindows
+    cpx #0
+    beq _window_close_cancel ; WID is null: cancel
+    ; TODO: signal window owner
+    ; Mark window area as dirty
+    jsl windowMarkDirty__
+; Find index of window in order
+    sep #$30
+    ldx #-1
+    @loop_find_window:
+        inx
+        lda.w kWindowOrder,X
+        cmp.b CURRENT_WINDOW_ID
+        bne @loop_find_window
+    ; kWindowOrder[X] == WID
+; decrement number of windows
+    lda.w kWindowNumWindows
+    dec A
+    sta.w kWindowNumWindows
+    sta.b TMP
+; shift windows from X+1 to X
+    @loop_copy_order:
+        cpx.b TMP
+        beq @skip_copy_order
+        lda.w kWindowOrder+1,X
+        sta.w kWindowOrder,X
+        inx
+        jmp @loop_copy_order
+    @skip_copy_order:
+; set process to 'null'
+    lda #0
+    ldx.b CURRENT_WINDOW_ID
+    sta.w kWindowTabProcess,X
+; Determine new owners of freed tiles
+    jsl windowDetermineDirtyOwners__
+    sep #$30
+    .RestoreInt__
+    plb
+    rtl
+    .UNDEFINE CURRENT_WINDOW_ID
+
+windowDetermineDirtyOwners__:
+    .ACCU 8
+    .INDEX 8
+    rep #$30
+    .DEFINE CURR_TILE_INDEX $00
+    .DEFINE CURR_TILE $02
+    .DEFINE TILE_X $04
+    .DEFINE TILE_Y $05
+    ; for each tile in dirty tile list, iterate order to find first window
+    ; which captures this tile.
+    lda.w kWindowNumDirtyTiles
+    asl
+    dec A
+    dec A
+    sta.b CURR_TILE_INDEX
+    @loop_dirty_tiles:
+        ldx.b CURR_TILE_INDEX
+        lda.w kWindowDirtyTileList,X
+        sta.b CURR_TILE
+        and #$1F
+        sta.b TILE_X
+        lda.b CURR_TILE
+        and #$3E0
+        lsr
+        lsr
+        lsr
+        lsr
+        lsr
+        sta.b TILE_Y
+        ; begin checking windows
+        sep #$30
+        ldy #-1
+        @loop_window_order:
+            iny
+            cpy.w kWindowNumWindows
+            bcs @end_loop_window_order_null
+            ldx.w kWindowOrder,Y
+            lda.w kWindowTabPosX,X
+            cmp.b TILE_X
+            bgru @loop_window_order
+            clc
+            adc.w kWindowTabWidth,X
+            cmp.b TILE_X
+            bleu @loop_window_order
+            lda.w kWindowTabPosY,X
+            cmp.b TILE_Y
+            bgru @loop_window_order
+            clc
+            adc.w kWindowTabHeight,X
+            cmp.b TILE_Y
+            bleu @loop_window_order
+            ; FOUND TILE: X=WID, Y=INDEX
+            jmp @end_loop_window_order_found
+        @end_loop_window_order_null:
+            ldx #0
+        @end_loop_window_order_found:
+        ; kWindowTileTabOwner[CURR_TILE] = WID
+        txa ; A=WID
+        rep #$10
+        ldx.b CURR_TILE ; X=CURR_TILE
+        sta.w kWindowTileTabOwner,X
+        rep #$20
+        ; while(--CURR_TILE_INDEX >= 0)
+        dec.b CURR_TILE_INDEX
+        dec.b CURR_TILE_INDEX
+        bpl @loop_dirty_tiles
+    @end_loop_dirty_tiles:
+    rtl
+    .UNDEFINE CURR_TILE_INDEX $00
+
+; renderTile([x16]WID window, [By16]void* buffer, [s8]int x, [s8] int y)
+; buffer[  0.. 32] is first tile,
+; buffer[ 32.. 64] is second tile
+; buffer[ 64.. 96] is third tile
+; buffer[ 96..128] is fourth tile.
+; Each tile has four bitplanes: 0101010101010101,2323232323232323
+_tilerender_clear:
+    .ACCU 16
+    .INDEX 16
+    ; clear whole tile
+    lda #$0000
+    ldx #128/2
+    @loop:
+        sta.w $0000,Y
+        iny
+        iny
+        dex
+        bne @loop
+    rtl
+
+_tilesignal_null:
+    rtl
 
 .ENDS
