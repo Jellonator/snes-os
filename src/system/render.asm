@@ -1,5 +1,7 @@
 .include "base.inc"
 
+.include "assets.inc"
+
 .BANK $00 SLOT "ROM"
 .SECTION "RenderInterrupt" FREE
 

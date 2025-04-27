@@ -555,6 +555,10 @@ windowUpdate__:
         rep #$30 ; 16A 16XY
         ldy.w kWindowTileBufferSize
         lda #0
+        cpx #0
+        beq +
+            lda #deft($20, 4)
+        +:
         sta.w kWindowTileBuffer.1.data,Y
         jsr _window_process_inner
         jmp @end_process_tile
@@ -676,8 +680,14 @@ _window_process_inner:
     sta.w FUNC+2
 ; push tile position
     lda.b TILE_X
+    sec
+    sbc.w kWindowTabPosX,X
+    dec A
     pha
     lda.b TILE_Y
+    sbc.w kWindowTabPosY,X
+    sec
+    dec A
     pha
 ; set direct page to that of process
     ldy.w kWindowTabProcess,X
@@ -916,6 +926,8 @@ kWindowMoveToFront__
     sep #$30
     cpx.w kWindowOrder
     beq @end ; already in front
+    cpx #0
+    beq @end ; user clicked on background - NEVER BRING BACKGROUND TO FRONT
 ; Find this window's location in order
     txa
     txy

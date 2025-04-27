@@ -91,6 +91,7 @@ _default_bg1_tiles:
     bDragWindow db
     bPrevMouseX db
     bPrevMouseY db
+    wTemp db
 .ENDE
 
 _desktop_init:
@@ -145,24 +146,24 @@ _desktop_init:
     lda #%00000001
     sta.l SETINI
 ; upload palettes
-    pea $0000 | bankbyte(palettes@desktop_base)
-    pea loword(palettes@desktop_base)
+    pea $0000 | bankbyte(palettes.desktop_base)
+    pea loword(palettes.desktop_base)
     jsl vCopyPalette4
     .POPN 4
-    pea $0400 | bankbyte(palettes@desktop_close)
-    pea loword(palettes@desktop_close)
+    pea $0400 | bankbyte(palettes.desktop_close)
+    pea loword(palettes.desktop_close)
     jsl vCopyPalette4
     .POPN 4
-    pea $0800 | bankbyte(palettes@desktop_blackout)
-    pea loword(palettes@desktop_blackout)
+    pea $0800 | bankbyte(palettes.desktop_blackout)
+    pea loword(palettes.desktop_blackout)
     jsl vCopyPalette4
     .POPN 4
-    pea $8000 | bankbyte(palettes@desktop_sprite_mouse)
-    pea loword(palettes@desktop_sprite_mouse)
+    pea $8000 | bankbyte(palettes.desktop_sprite_mouse)
+    pea loword(palettes.desktop_sprite_mouse)
     jsl vCopyPalette16
     .POPN 4
-    pea $1000 | bankbyte(palettes@grayscale)
-    pea loword(palettes@grayscale)
+    pea $1000 | bankbyte(palettes.grayscale)
+    pea loword(palettes.grayscale)
     jsl vCopyPalette16
     .POPN 4
 ; upload default tile data
@@ -179,12 +180,12 @@ _desktop_init:
 ; upload desktop character data
     pea $0000
     pea $0400
-    .PEAL sprites@DesktopUI__
+    .PEAL spritedata.DesktopUI__
     jsl vCopyMem
     .POPN 7
     pea $0400
     pea $0400
-    .PEAL sprites@DesktopSprites__
+    .PEAL spritedata.DesktopSprites__
     jsl vCopyMem
     .POPN 7
 ; clear sprite data
@@ -244,18 +245,46 @@ _desktop_init:
 ; buffer[ 64.. 96] is third tile
 ; buffer[ 96..128] is fourth tile.
 ; Each tile has four bitplanes: 0101010101010101,2323232323232323
+; $05,S x
+; $04,S y
 _tilerender_null:
     .ACCU 16
     .INDEX 16
-    ; set whole tile to white
-    lda #$FFFF
-    ldx #128/2
+    ; copy text data to tile
+    lda $05,S
+    and #$00FF
+    .MultiplyStatic $0040
+    sta.b wTemp
+    lda $04,S
+    and #$00FF
+    .MultiplyStatic $0400
+    ora.b wTemp
+    tax
+    lda #32
+    sta.b wTemp
     @loop:
-        sta.w $0000,Y
-        iny
-        iny
-        dex
-        bne @loop
+       lda.l spritedata.KFont16__,X
+       eor #$FFFF
+       sta.w $0000,Y
+       lda.l spritedata.KFont16__+$0200,X
+       eor #$FFFF
+       sta.w $0040,Y
+       iny
+       iny
+       inx
+       inx
+       dec.b wTemp
+       bne @loop
+
+    ; ; set whole tile to white
+    ; lda #$FFFF
+    ; ldx #128/2
+    ; @loop:
+    ;     sta.w $0000,Y
+    ;     iny
+    ;     iny
+    ;     dex
+    ;     bne @loop
     rtl
 
 _desktop_render:

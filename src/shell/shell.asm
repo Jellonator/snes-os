@@ -700,9 +700,9 @@ _shell_init:
     pea BG2_SHELLBACK_CHAR_BASE_ADDR
     pea 16 * 4 * 8 * 2 ; 16x4, 2bpp
     sep #$20 ; 8 bit A
-    lda #bankbyte(sprites@ShellUIAsset__)
+    lda #bankbyte(spritedata.ShellUIAsset__)
     pha
-    pea loword(sprites@ShellUIAsset__)
+    pea loword(spritedata.ShellUIAsset__)
     jsl vCopyMem
     sep #$20 ; 8 bit A
     pla
@@ -735,9 +735,9 @@ _shell_init:
     pea OBJ1_ICON_BASE_ADDR
     pea 16 * 4 * 8 * 4 ; 16x4, 4bpp
     sep #$20
-    lda #bankbyte(sprites@ShellUISprites__)
+    lda #bankbyte(spritedata.ShellUISprites__)
     pha
-    pea loword(sprites@ShellUISprites__)
+    pea loword(spritedata.ShellUISprites__)
     jsl vCopyMem
     sep #$20 ; 8 bit A
     pla

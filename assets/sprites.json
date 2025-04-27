@@ -23,5 +23,10 @@
         "name": "DesktopSprites__",
         "src": "assets/sprites/desktop_sprites.raw",
         "depth": 16
+    },
+    {
+        "name": "KFont16__",
+        "src": "assets/sprites/font_ascii_16x.raw",
+        "depth": 16
     }
 ]

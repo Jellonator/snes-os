@@ -3,8 +3,6 @@
 .BANK $02 SLOT "ROM"
 .SECTION "KPrintAssets" FREE
 
-.include "assets.inc"
-
 vPrintPalette:
     .DCOLOR_RGB5  0,  0,  0
     .DCOLOR_RGB5 31, 31, 31
@@ -128,9 +126,9 @@ vPrinterInit:
     pea BG4_CHARACTER_BASE_ADDR
     pea 16 * 16 * 8 * 2 ; 16x16, 2bpp
     sep #$20 ; 8 bit A
-    lda #bankbyte(sprites@KPrintFontAsset__)
+    lda #bankbyte(spritedata.KPrintFontAsset__)
     pha
-    pea loword(sprites@KPrintFontAsset__)
+    pea loword(spritedata.KPrintFontAsset__)
     jsl vCopyMem
     sep #$20 ; 8 bit A
     pla

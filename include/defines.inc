@@ -67,7 +67,7 @@
 
 ; TILE FLAGS
 
-.DEFINE T_HIGHP 0x2000  ; high priority
-.DEFINE T_FLIPH 0x4000  ; flip horizontal
-.DEFINE T_FLIPV 0x8000  ; flip vertical
-.DEFINE T_FLIPVH 0xC000 ; flip horizontal and vertical
+.DEFINE T_HIGHP $2000  ; high priority
+.DEFINE T_FLIPH $4000  ; flip horizontal
+.DEFINE T_FLIPV $8000  ; flip vertical
+.DEFINE T_FLIPVH $C000 ; flip horizontal and vertical
